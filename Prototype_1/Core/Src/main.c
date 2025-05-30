@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os2.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -48,6 +49,7 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void SystemPower_Config(void);
+void MX_FREERTOS_Init(void);
 static void MX_GPIO_Init(void);
 static void MX_ICACHE_Init(void);
 /* USER CODE BEGIN PFP */
@@ -93,9 +95,49 @@ int main(void)
   MX_GPIO_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
-  if(vib_io_init() != 0) 	HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // LED2[ORANGE] ON
-  else						HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // LED1[GREEN] ON
+  int vib_result = vib_io_init();
+
+  if (vib_result == 0) {
+      // No error: GREEN ON
+      HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);     // GREEN ON
+      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);   // ORANGE OFF
+  }
+  else if (vib_result == -2) {
+      // WHO_AM_I error: YELLOW (ORANGE) BLINK 3x, then stays ON
+      for (int i = 0; i < 3; i++) {
+          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // ORANGE toggle
+          HAL_Delay(200);
+          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+          HAL_Delay(200);
+      }
+      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);   // ORANGE ON
+      HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET); // GREEN OFF
+  }
+  else if (vib_result == -3) {
+      // INT1 route error: YELLOW & GREEN BLINK 3x, then YELLOW stays ON
+      for (int i = 0; i < 3; i++) {
+          HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // GREEN toggle
+          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // ORANGE toggle
+          HAL_Delay(200);
+          HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // GREEN toggle back
+          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // ORANGE toggle back
+          HAL_Delay(200);
+      }
+      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);   // ORANGE ON
+      HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET); // GREEN OFF
+  }
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* Call init function for freertos objects (in app_freertos.c) */
+  MX_FREERTOS_Init();
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -253,7 +295,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(INT1_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI15_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */

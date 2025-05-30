@@ -982,8 +982,7 @@ typedef struct
   uint8_t fifo_full     : 1; /* FIFO full */
   uint8_t fifo_bdr      : 1; /* FIFO Batch counter threshold reached */
   uint8_t wake_up       : 1; /* wake up event */
-uint8_t sleep_change  :
-  1; /* Act/Inact (or Vice-versa) status changed */
+  uint8_t sleep_change  : 1; /* Act/Inact (or Vice-versa) status changed */
   uint8_t sleep_status  : 1; /* Act/Inact status */
 } iis3dwb_pin_int1_route_t;
 int32_t iis3dwb_pin_int1_route_set(const stmdev_ctx_t *ctx,

@@ -1,8 +1,8 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    stm32u5xx_it.h
-  * @brief   This file contains the headers of the interrupt handlers.
+  * File Name          : app_freertos.h
+  * Description        : FreeRTOS applicative header file
   ******************************************************************************
   * @attention
   *
@@ -18,12 +18,17 @@
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __STM32U5xx_IT_H
-#define __STM32U5xx_IT_H
+#ifndef __APP_FREERTOS_H
+#define __APP_FREERTOS_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+/* Includes ------------------------------------------------------------------*/
+#include "FreeRTOS.h"
+#include "task.h"
+#include "main.h"
+#include "cmsis_os2.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -40,26 +45,34 @@ extern "C" {
 
 /* USER CODE END EC */
 
-/* Exported macro ------------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* Exported macro -------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
 /* USER CODE END EM */
+extern osThreadId_t LED1_g_taskHandle;
+extern osThreadId_t LED2_o_taskHandle;
 
-/* Exported functions prototypes ---------------------------------------------*/
-void NMI_Handler(void);
-void HardFault_Handler(void);
-void MemManage_Handler(void);
-void BusFault_Handler(void);
-void UsageFault_Handler(void);
-void DebugMon_Handler(void);
-void EXTI15_IRQHandler(void);
-void TIM3_IRQHandler(void);
-/* USER CODE BEGIN EFP */
+/* Exported function prototypes -----------------------------------------------*/
+/* USER CODE BEGIN FunctionPrototypes */
 
-/* USER CODE END EFP */
+/* USER CODE END FunctionPrototypes */
+
+void LED1_g_task_function(void *argument);
+void LED2_o_task_function(void *argument);
+
+void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
+
+/* Private application code --------------------------------------------------*/
+/* USER CODE BEGIN Application */
+
+/* USER CODE END Application */
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __STM32U5xx_IT_H */
+#endif /* __APP_FREERTOS_H */

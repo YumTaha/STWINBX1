@@ -26,6 +26,9 @@ static int32_t  drv_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len)
   return 0;
 }
 
+/* Provide Access via a Getter Function */
+stmdev_ctx_t* vib_io_get_ctx(void)		{return &dev_ctx;}
+
 /**
  * @brief  Initialize the IIS3DWB vibration sensor and configure it for data acquisition.
  *
@@ -74,11 +77,16 @@ int32_t vib_io_init(void)
   iis3dwb_xl_full_scale_set(&dev_ctx, IIS3DWB_2g);
   iis3dwb_xl_filt_path_on_out_set(&dev_ctx, IIS3DWB_LP_6k3Hz);
 
-  /* 6) enable data-ready interrupt on INT1 */
-  iis3dwb_int1_ctrl_t int1_ctrl;
-  iis3dwb_read_reg(&dev_ctx, IIS3DWB_INT1_CTRL, (uint8_t *)&int1_ctrl, 1);
-  int1_ctrl.int1_drdy_xl = 1;
-  iis3dwb_write_reg(&dev_ctx, IIS3DWB_INT1_CTRL, (uint8_t *)&int1_ctrl, 1);
+  /* 6) initialize fifo */
+  iis3dwb_fifo_watermark_set(&dev_ctx, FIFO_THRESHOLD); // 1. Set FIFO threshold (samples)
+  iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // 2. Set FIFO mode (stream FIFO, overwrites oldest)
+
+  /* 7) enable FIFO threshold interrupt on INT1 */
+  iis3dwb_pin_int1_route_t int1_route = {0};
+  int1_route.fifo_th = 1; // Enable FIFO threshold interrupt
+  if(iis3dwb_pin_int1_route_set(&dev_ctx, &int1_route))	return -3; 	//Error handle (Failed to configure INT1 route)
 
   return 0;
 }
+
+
