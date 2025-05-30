@@ -23,11 +23,12 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "vib_io.h"
+#include "app_freertos.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+BaseType_t xHigherPriorityTaskWoken = pdFALSE; // for callback
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -51,6 +52,7 @@ void SystemClock_Config(void);
 static void SystemPower_Config(void);
 void MX_FREERTOS_Init(void);
 static void MX_GPIO_Init(void);
+static void MX_GPDMA1_Init(void);
 static void MX_ICACHE_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -93,38 +95,18 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_GPDMA1_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
-  int vib_result = vib_io_init();
-
-  if (vib_result == 0) {
-      // No error: GREEN ON
-      HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);     // GREEN ON
-      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);   // ORANGE OFF
+  if(vib_io_init() != 0){
+	  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // LED2[ORANGE] ON
+	  HAL_Delay(2000);
+	  Error_Handler();
   }
-  else if (vib_result == -2) {
-      // WHO_AM_I error: YELLOW (ORANGE) BLINK 3x, then stays ON
-      for (int i = 0; i < 3; i++) {
-          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // ORANGE toggle
-          HAL_Delay(200);
-          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-          HAL_Delay(200);
-      }
-      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);   // ORANGE ON
-      HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET); // GREEN OFF
-  }
-  else if (vib_result == -3) {
-      // INT1 route error: YELLOW & GREEN BLINK 3x, then YELLOW stays ON
-      for (int i = 0; i < 3; i++) {
-          HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // GREEN toggle
-          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // ORANGE toggle
-          HAL_Delay(200);
-          HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // GREEN toggle back
-          HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // ORANGE toggle back
-          HAL_Delay(200);
-      }
-      HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);   // ORANGE ON
-      HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET); // GREEN OFF
+  else{
+	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // LED1[GREEN] ON
+	  HAL_Delay(2000);
+	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // LED1[GREEN] ON
   }
   /* USER CODE END 2 */
 
@@ -223,6 +205,34 @@ static void SystemPower_Config(void)
 }
 
 /**
+  * @brief GPDMA1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPDMA1_Init(void)
+{
+
+  /* USER CODE BEGIN GPDMA1_Init 0 */
+
+  /* USER CODE END GPDMA1_Init 0 */
+
+  /* Peripheral clock enable */
+  __HAL_RCC_GPDMA1_CLK_ENABLE();
+
+  /* GPDMA1 interrupt Init */
+    HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+
+  /* USER CODE BEGIN GPDMA1_Init 1 */
+
+  /* USER CODE END GPDMA1_Init 1 */
+  /* USER CODE BEGIN GPDMA1_Init 2 */
+
+  /* USER CODE END GPDMA1_Init 2 */
+
+}
+
+/**
   * @brief ICACHE Initialization Function
   * @param None
   * @retval None
@@ -304,7 +314,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == INT1_Pin) { // Sends a notification to FreeRTOS that an interrupt has occured
+        vTaskNotifyGiveFromISR(FIFO_readHandle, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
+}
 /* USER CODE END 4 */
 
 /**

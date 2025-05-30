@@ -47,19 +47,17 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for LED1_g_task */
-osThreadId_t LED1_g_taskHandle;
-const osThreadAttr_t LED1_g_task_attributes = {
-  .name = "LED1_g_task",
-  .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4
+/* Definitions for FIFO_read */
+osThreadId_t FIFO_readHandle;
+const osThreadAttr_t FIFO_read_attributes = {
+  .name = "FIFO_read",
+  .priority = (osPriority_t) osPriorityAboveNormal,
+  .stack_size = 256 * 4
 };
-/* Definitions for LED2_o_task */
-osThreadId_t LED2_o_taskHandle;
-const osThreadAttr_t LED2_o_task_attributes = {
-  .name = "LED2_o_task",
-  .priority = (osPriority_t) osPriorityLow,
-  .stack_size = 128 * 4
+/* Definitions for vib_dma_sem */
+osSemaphoreId_t vib_dma_semHandle;
+const osSemaphoreAttr_t vib_dma_sem_attributes = {
+  .name = "vib_dma_sem"
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,9 +78,12 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
+  /* creation of vib_dma_sem */
+  vib_dma_semHandle = osSemaphoreNew(1, 1, &vib_dma_sem_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+  osSemaphoreAcquire(vib_dma_semHandle, 0); // Now count = 0, so task will wait
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -92,11 +93,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
-  /* creation of LED1_g_task */
-  LED1_g_taskHandle = osThreadNew(LED1_g_task_function, NULL, &LED1_g_task_attributes);
-
-  /* creation of LED2_o_task */
-  LED2_o_taskHandle = osThreadNew(LED2_o_task_function, NULL, &LED2_o_task_attributes);
+  /* creation of FIFO_read */
+  FIFO_readHandle = osThreadNew(FIFO_read_task_function, NULL, &FIFO_read_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -107,40 +105,31 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_EVENTS */
 
 }
-/* USER CODE BEGIN Header_LED1_g_task_function */
+/* USER CODE BEGIN Header_FIFO_read_task_function */
 /**
-* @brief Function implementing the LED1_g_task thread.
+* @brief Function implementing the FIFO_read thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_LED1_g_task_function */
-void LED1_g_task_function(void *argument)
+/* USER CODE END Header_FIFO_read_task_function */
+void FIFO_read_task_function(void *argument)
 {
-  /* USER CODE BEGIN LED1_g_task */
-	/* Infinite loop */
-	for(;;)
-	{
-	osDelay(1);
-	}
-  /* USER CODE END LED1_g_task */
-}
+  /* USER CODE BEGIN FIFO_read */
+  /* Infinite loop */
+	for (;;) {
+	    ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Wait for INT1
 
-/* USER CODE BEGIN Header_LED2_o_task_function */
-/**
-* @brief Function implementing the LED2_o_task thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_LED2_o_task_function */
-void LED2_o_task_function(void *argument)
-{
-  /* USER CODE BEGIN LED2_o_task */
-	/* Infinite loop */
-	for(;;)
-	{
-	osDelay(1);
+	    if (vib_fifo_dma_read_all() == 0) {
+	        // Wait for DMA to complete before continuing!
+	        osSemaphoreAcquire(vib_dma_semHandle, osWaitForever);
+
+	        // Now data is ready in fifo_dma_buffer
+	        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); // Green ON
+	    } else {
+	        HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET); // Orange ON
+	    }
 	}
-  /* USER CODE END LED2_o_task */
+  /* USER CODE END FIFO_read */
 }
 
 /* Private application code --------------------------------------------------*/

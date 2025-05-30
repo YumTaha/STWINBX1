@@ -54,16 +54,15 @@ extern "C" {
 /* USER CODE BEGIN EM */
 
 /* USER CODE END EM */
-extern osThreadId_t LED1_g_taskHandle;
-extern osThreadId_t LED2_o_taskHandle;
+extern osThreadId_t FIFO_readHandle;
+extern osSemaphoreId_t vib_dma_semHandle;
 
 /* Exported function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
 
-void LED1_g_task_function(void *argument);
-void LED2_o_task_function(void *argument);
+void FIFO_read_task_function(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 

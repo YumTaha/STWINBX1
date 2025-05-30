@@ -2,8 +2,14 @@
 #include "iis3dwb_reg.h"
 #include "steval_stwinbx1_bus.h"
 #include "main.h"      // for CS_DWB_GPIO_Port, CS_DWB_Pin
+#include "cmsis_os.h"       // For FreeRTOS semaphore
+#include <string.h>
+#include "app_freertos.h"
 
-extern SPI_HandleTypeDef hspi2;
+#define FIFO_DMA_BUF_SIZE  (FIFO_THRESHOLD * 7)
+uint8_t fifo_dma_buffer[FIFO_DMA_BUF_SIZE];
+
+// extern SPI_HandleTypeDef hspi2; I believe this already coming from "steval_stwinbx1_bus.h"
 static stmdev_ctx_t dev_ctx;
 
 
@@ -89,4 +95,24 @@ int32_t vib_io_init(void)
   return 0;
 }
 
+/* FIFO DMA read function */
+int vib_fifo_dma_read_all(void)
+{
+    memset(fifo_dma_buffer, 0, FIFO_THRESHOLD * 7);
 
+    HAL_GPIO_WritePin(CS_DWB_GPIO_Port, CS_DWB_Pin, GPIO_PIN_RESET);
+    if (HAL_SPI_Receive_DMA(&hspi2, fifo_dma_buffer, FIFO_THRESHOLD * 7) != HAL_OK) {
+        HAL_GPIO_WritePin(CS_DWB_GPIO_Port, CS_DWB_Pin, GPIO_PIN_SET);
+        return -1;  // error
+    }
+    return 0; // success
+}
+
+/* DMA Complete Callback */
+void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi->Instance == SPI2) {
+        HAL_GPIO_WritePin(CS_DWB_GPIO_Port, CS_DWB_Pin, GPIO_PIN_SET);
+        osSemaphoreRelease(vib_dma_semHandle);  // Unblock the task!
+    }
+}
