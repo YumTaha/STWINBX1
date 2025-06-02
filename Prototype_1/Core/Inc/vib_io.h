@@ -5,7 +5,7 @@
 #include "iis3dwb_reg.h"
 #include "stm32u5xx_hal.h"
 
-#define FIFO_THRESHOLD 128
+#define FIFO_THRESHOLD 4
 
 /* call once at startup. returns 0 on success */
 int32_t  vib_io_init(void);

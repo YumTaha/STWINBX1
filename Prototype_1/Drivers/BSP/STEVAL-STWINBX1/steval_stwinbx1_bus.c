@@ -198,23 +198,6 @@ int32_t BSP_SPI2_SendRecv(uint8_t *pTxData, uint8_t *pRxData, uint16_t Length)
   return ret;
 }
 
-/**
-  * @brief  Receive Data from SPI BUS with DMA
-  * @param  pData: Pointer to data buffer to receive
-  * @param  Length: Length of data in byte
-  * @retval BSP status
-  */
-int32_t  BSP_SPI2_Recv_DMA(uint8_t *pData, uint16_t Length)
-{
-  int32_t ret = BSP_ERROR_NONE;
-
-  if(HAL_SPI_Receive_DMA(&hspi2, pData, Length) != HAL_OK)
-  {
-      ret = BSP_ERROR_UNKNOWN_FAILURE;
-  }
-  return ret;
-}
-
 #if (USE_HAL_SPI_REGISTER_CALLBACKS == 1U)
 /**
   * @brief Register Default BSP SPI2 Bus Msp Callbacks
@@ -321,7 +304,6 @@ __weak HAL_StatusTypeDef MX_SPI2_Init(SPI_HandleTypeDef* hspi)
 
   return ret;
 }
-DMA_HandleTypeDef handle_GPDMA1_Channel0;
 
 static void SPI2_MspInit(SPI_HandleTypeDef* spiHandle)
 {
@@ -368,31 +350,6 @@ static void SPI2_MspInit(SPI_HandleTypeDef* spiHandle)
     GPIO_InitStruct.Alternate = BUS_SPI2_MOSI_GPIO_AF;
     HAL_GPIO_Init(BUS_SPI2_MOSI_GPIO_PORT, &GPIO_InitStruct);
 
-    /* Peripheral DMA init*/
-
-    handle_GPDMA1_Channel0.Instance = GPDMA1_Channel0;
-    handle_GPDMA1_Channel0.Init.Request = GPDMA1_REQUEST_SPI2_RX;
-    handle_GPDMA1_Channel0.Init.BlkHWRequest = DMA_BREQ_SINGLE_BURST;
-    handle_GPDMA1_Channel0.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    handle_GPDMA1_Channel0.Init.SrcInc = DMA_SINC_FIXED;
-    handle_GPDMA1_Channel0.Init.DestInc = DMA_DINC_INCREMENTED;
-    handle_GPDMA1_Channel0.Init.SrcDataWidth = DMA_SRC_DATAWIDTH_BYTE;
-    handle_GPDMA1_Channel0.Init.DestDataWidth = DMA_DEST_DATAWIDTH_BYTE;
-    handle_GPDMA1_Channel0.Init.Priority = DMA_LOW_PRIORITY_MID_WEIGHT;
-    handle_GPDMA1_Channel0.Init.SrcBurstLength = 1;
-    handle_GPDMA1_Channel0.Init.DestBurstLength = 1;
-    handle_GPDMA1_Channel0.Init.TransferAllocatedPort = DMA_SRC_ALLOCATED_PORT0|DMA_DEST_ALLOCATED_PORT0;
-    handle_GPDMA1_Channel0.Init.TransferEventMode = DMA_TCEM_BLOCK_TRANSFER;
-    handle_GPDMA1_Channel0.Init.Mode = DMA_NORMAL;
-    HAL_DMA_Init(&handle_GPDMA1_Channel0);
-
-    __HAL_LINKDMA(spiHandle, hdmarx, handle_GPDMA1_Channel0);
-
-    HAL_DMA_ConfigChannelAttributes(&handle_GPDMA1_Channel0, DMA_CHANNEL_NPRIV);
-
-    /* Peripheral interrupt init */
-    HAL_NVIC_SetPriority(SPI2_IRQn, 5, 0);
-    HAL_NVIC_EnableIRQ(SPI2_IRQn);
   /* USER CODE BEGIN SPI2_MspInit 1 */
 
   /* USER CODE END SPI2_MspInit 1 */
@@ -416,12 +373,6 @@ static void SPI2_MspDeInit(SPI_HandleTypeDef* spiHandle)
     HAL_GPIO_DeInit(BUS_SPI2_MISO_GPIO_PORT, BUS_SPI2_MISO_GPIO_PIN);
 
     HAL_GPIO_DeInit(BUS_SPI2_MOSI_GPIO_PORT, BUS_SPI2_MOSI_GPIO_PIN);
-
-    /* Peripheral DMA DeInit*/
-    HAL_DMA_DeInit(spiHandle->hdmarx);
-
-    /* Peripheral interrupt Deinit*/
-    HAL_NVIC_DisableIRQ(SPI2_IRQn);
 
   /* USER CODE BEGIN SPI2_MspDeInit 1 */
 

@@ -2,14 +2,13 @@
 #include "iis3dwb_reg.h"
 #include "steval_stwinbx1_bus.h"
 #include "main.h"      // for CS_DWB_GPIO_Port, CS_DWB_Pin
-#include "cmsis_os.h"       // For FreeRTOS semaphore
+//#include "cmsis_os.h"       // For FreeRTOS semaphore
 #include <string.h>
-#include "app_freertos.h"
+//#include "app_freertos.h"
 
-#define FIFO_DMA_BUF_SIZE  (FIFO_THRESHOLD * 7)
-uint8_t fifo_dma_buffer[FIFO_DMA_BUF_SIZE];
+//#define FIFO_DMA_BUF_SIZE  (FIFO_THRESHOLD * 7)
+//uint8_t fifo_dma_buffer[FIFO_DMA_BUF_SIZE];
 
-// extern SPI_HandleTypeDef hspi2; I believe this already coming from "steval_stwinbx1_bus.h"
 static stmdev_ctx_t dev_ctx;
 
 
@@ -79,24 +78,28 @@ int32_t vib_io_init(void)
 
   /* 5) basic configuration */
   iis3dwb_block_data_update_set(&dev_ctx, PROPERTY_ENABLE);
-  iis3dwb_xl_data_rate_set  (&dev_ctx, IIS3DWB_XL_ODR_26k7Hz);
+
   iis3dwb_xl_full_scale_set(&dev_ctx, IIS3DWB_2g);
   iis3dwb_xl_filt_path_on_out_set(&dev_ctx, IIS3DWB_LP_6k3Hz);
 
   /* 6) initialize fifo */
-  iis3dwb_fifo_watermark_set(&dev_ctx, FIFO_THRESHOLD); // 1. Set FIFO threshold (samples)
+  iis3dwb_fifo_watermark_set(&dev_ctx, 256); // 1. Set FIFO threshold (samples)
   iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // 2. Set FIFO mode (stream FIFO, overwrites oldest)
+  iis3dwb_fifo_xl_batch_set(&dev_ctx, IIS3DWB_XL_BATCHED_AT_26k7Hz);
+  iis3dwb_fifo_stop_on_wtm_set(&dev_ctx, 1);
 
   /* 7) enable FIFO threshold interrupt on INT1 */
   iis3dwb_pin_int1_route_t int1_route = {0};
   int1_route.fifo_th = 1; // Enable FIFO threshold interrupt
-  if(iis3dwb_pin_int1_route_set(&dev_ctx, &int1_route))	return -3; 	//Error handle (Failed to configure INT1 route)
+  iis3dwb_pin_int1_route_set(&dev_ctx, &int1_route);
 
+  iis3dwb_xl_data_rate_set(&dev_ctx, IIS3DWB_XL_ODR_26k7Hz);
   return 0;
 }
 
+
 /* FIFO DMA read function */
-int vib_fifo_dma_read_all(void)
+/*int vib_fifo_dma_read_all(void)
 {
     memset(fifo_dma_buffer, 0, FIFO_THRESHOLD * 7);
 
@@ -106,13 +109,14 @@ int vib_fifo_dma_read_all(void)
         return -1;  // error
     }
     return 0; // success
-}
+}*/
 
 /* DMA Complete Callback */
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
+/*void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == SPI2) {
         HAL_GPIO_WritePin(CS_DWB_GPIO_Port, CS_DWB_Pin, GPIO_PIN_SET);
         osSemaphoreRelease(vib_dma_semHandle);  // Unblock the task!
     }
 }
+*/
