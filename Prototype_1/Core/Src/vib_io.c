@@ -98,6 +98,69 @@ int32_t vib_io_init(void)
 }
 
 
+
+void vib_fifo_read_all_simple(void)
+{
+    uint16_t num_samples = 0;
+    iis3dwb_fifo_out_raw_t fifo_buf[FIFO_THRESHOLD];
+
+    // 1. How many samples in FIFO?
+    if (iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples) != 0)
+        return;  // Error
+
+    if (num_samples == 0)
+        return;  // Nothing to read
+
+    if (num_samples > FIFO_THRESHOLD)
+        num_samples = FIFO_THRESHOLD;  // Safety
+
+    // 2. Read them all in one call
+    if (iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_buf, num_samples) != 0)
+        return;  // Error
+
+    // 3. Process each sample
+    /*
+    for (uint16_t i = 0; i < num_samples; i++)
+    {
+        if (fifo_buf[i].tag == IIS3DWB_XL_TAG)  // Accelerometer sample
+        {
+            int16_t x = (fifo_buf[i].data[1] << 8) | fifo_buf[i].data[0];
+            int16_t y = (fifo_buf[i].data[3] << 8) | fifo_buf[i].data[2];
+            int16_t z = (fifo_buf[i].data[5] << 8) | fifo_buf[i].data[4];
+            // Convert to mg if you want, or just use raw
+            // float fx = iis3dwb_from_fs2g_to_mg(x); // if FS=2g
+            // ...
+            printf("FIFO X:%d Y:%d Z:%d\r\n", x, y, z);
+        }
+    }
+    */
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* FIFO DMA read function */
 /*int vib_fifo_dma_read_all(void)
 {

@@ -44,6 +44,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 UART_HandleTypeDef huart2;
+volatile uint8_t fifo_int_flag = 0;
+volatile uint8_t count = 0;
 
 /* USER CODE BEGIN PV */
 
@@ -118,9 +120,16 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  char msg[2] = "-\n";  // Two bytes: '-' and null terminator
-	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, 1, HAL_MAX_DELAY);
-	  //HAL_Delay(1);
+	  if (fifo_int_flag) {
+		  fifo_int_flag = 0; // Reset the flag
+
+		  // Dump and process the FIFO
+		  vib_fifo_read_all_simple(); // This is the function from above
+		  printf("HERE I AM");
+		  count++;
+
+	  }
+
 
   }
   /* USER CODE END 3 */
@@ -335,11 +344,10 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
         //vTaskNotifyGiveFromISR(FIFO_readHandle, &xHigherPriorityTaskWoken);
         //portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     //}
-	//if(GPIO_Pin == INT1_Pin){
-	//	HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+	if(GPIO_Pin == INT1_Pin){
+		fifo_int_flag = 1;  // Set the flag
 
-
-	//}
+	}
 }
 /* USER CODE END 4 */
 
