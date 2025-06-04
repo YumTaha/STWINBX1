@@ -4,10 +4,14 @@
 #include "main.h"      // for CS_DWB_GPIO_Port, CS_DWB_Pin
 //#include "cmsis_os.h"       // For FreeRTOS semaphore
 #include <string.h>
+#include "stdio.h"
 //#include "app_freertos.h"
 
 //#define FIFO_DMA_BUF_SIZE  (FIFO_THRESHOLD * 7)
 //uint8_t fifo_dma_buffer[FIFO_DMA_BUF_SIZE];
+extern UART_HandleTypeDef huart2;
+#define IIS3DWB_FIFO_TAG_MASK   0xF8
+#define FIFO_WATERMARK    256
 
 static stmdev_ctx_t dev_ctx;
 
@@ -31,6 +35,12 @@ static int32_t  drv_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len)
   return 0;
 }
 
+int _write(int file, char *ptr, int len){
+  int i=0;
+  for(i=0 ; i<len ; i++)
+	  ITM_SendChar((*ptr++));
+  return len;
+}
 /* Provide Access via a Getter Function */
 stmdev_ctx_t* vib_io_get_ctx(void)		{return &dev_ctx;}
 
@@ -51,6 +61,7 @@ stmdev_ctx_t* vib_io_get_ctx(void)		{return &dev_ctx;}
  * @retval -2  IIS3DWB sensor not found (WHO_AM_I mismatch).
  */
 int32_t vib_io_init(void)
+
 {
   uint8_t whoamI, rst;
 
@@ -80,69 +91,216 @@ int32_t vib_io_init(void)
   iis3dwb_block_data_update_set(&dev_ctx, PROPERTY_ENABLE);
 
   iis3dwb_xl_full_scale_set(&dev_ctx, IIS3DWB_2g);
-  iis3dwb_xl_filt_path_on_out_set(&dev_ctx, IIS3DWB_LP_6k3Hz);
+  iis3dwb_fifo_watermark_set(&dev_ctx, FIFO_WATERMARK); // 1. Set FIFO threshold (samples)
+  iis3dwb_fifo_xl_batch_set(&dev_ctx, IIS3DWB_XL_BATCHED_AT_26k7Hz);
+  iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // 2. Set FIFO mode to stop collecting data when FIFO is full
+
+  //iis3dwb_xl_filt_path_on_out_set(&dev_ctx, IIS3DWB_LP_6k3Hz);
 
   /* 6) initialize fifo */
-  iis3dwb_fifo_watermark_set(&dev_ctx, 256); // 1. Set FIFO threshold (samples)
-  iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // 2. Set FIFO mode (stream FIFO, overwrites oldest)
-  iis3dwb_fifo_xl_batch_set(&dev_ctx, IIS3DWB_XL_BATCHED_AT_26k7Hz);
-  iis3dwb_fifo_stop_on_wtm_set(&dev_ctx, 1);
+
+  //iis3dwb_fifo_stop_on_wtm_set(&dev_ctx, 1);
 
   /* 7) enable FIFO threshold interrupt on INT1 */
   iis3dwb_pin_int1_route_t int1_route = {0};
   int1_route.fifo_th = 1; // Enable FIFO threshold interrupt
+  int1_route.fifo_ovr = 1;
+  int1_route.fifo_full = 1;
+  int1_route.fifo_bdr = 1;
   iis3dwb_pin_int1_route_set(&dev_ctx, &int1_route);
 
   iis3dwb_xl_data_rate_set(&dev_ctx, IIS3DWB_XL_ODR_26k7Hz);
+
   return 0;
 }
 
 
 
-void vib_fifo_read_all_simple(void)
-{
-    uint16_t num_samples = 0;
-    iis3dwb_fifo_out_raw_t fifo_buf[FIFO_THRESHOLD];
 
-    // 1. How many samples in FIFO?
-    if (iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples) != 0)
-        return;  // Error
 
-    if (num_samples == 0)
-        return;  // Nothing to read
+static iis3dwb_fifo_out_raw_t fifo_data[FIFO_WATERMARK];
+iis3dwb_fifo_status_t fifo_status;
+static uint8_t tx_buffer[2000];
 
-    if (num_samples > FIFO_THRESHOLD)
-        num_samples = FIFO_THRESHOLD;  // Safety
+static int16_t *datax;
+static int16_t *datay;
+static int16_t *dataz;
+static int32_t *ts;
 
-    // 2. Read them all in one call
-    if (iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_buf, num_samples) != 0)
-        return;  // Error
+void vib_read(void){
+	uint16_t num = 0, k;
 
-    // 3. Process each sample
-    /*
-    for (uint16_t i = 0; i < num_samples; i++)
-    {
-        if (fifo_buf[i].tag == IIS3DWB_XL_TAG)  // Accelerometer sample
-        {
-            int16_t x = (fifo_buf[i].data[1] << 8) | fifo_buf[i].data[0];
-            int16_t y = (fifo_buf[i].data[3] << 8) | fifo_buf[i].data[2];
-            int16_t z = (fifo_buf[i].data[5] << 8) | fifo_buf[i].data[4];
-            // Convert to mg if you want, or just use raw
-            // float fx = iis3dwb_from_fs2g_to_mg(x); // if FS=2g
-            // ...
-            printf("FIFO X:%d Y:%d Z:%d\r\n", x, y, z);
-        }
-    }
-    */
+	/* Read watermark flag */
+	iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
+
+	if (fifo_status.fifo_th == 1) {
+		num = fifo_status.fifo_level;
+		snprintf((char *)tx_buffer, sizeof(tx_buffer), "-- FIFO num %d \r\n", num);
+		HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
+
+		/* read out all FIFO entries in a single read */
+		iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_data, num);
+		// Reset FIFO
+		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE);
+		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE);
+
+		for (k = 0; k < num; k++) {
+			iis3dwb_fifo_out_raw_t *f_data;
+
+			/* print out first two and last two FIFO entries only */
+			if (k > 1 && k < num - 2)	continue;
+
+			f_data = &fifo_data[k];
+
+			/* Read FIFO sensor value */
+			datax = (int16_t *)&f_data->data[0];
+			datay = (int16_t *)&f_data->data[2];
+			dataz = (int16_t *)&f_data->data[4];
+			ts = (int32_t *)&f_data->data[0];
+
+			switch (f_data->tag >> 3) {
+			case IIS3DWB_XL_TAG:
+				snprintf((char *)tx_buffer, sizeof(tx_buffer), "%d: ACC [mg]:\t%4.0f\t%4.0f\t%4.0f\r\n",
+						k,
+						iis3dwb_from_fs8g_to_mg(*datax),
+						iis3dwb_from_fs8g_to_mg(*datay),
+						iis3dwb_from_fs8g_to_mg(*dataz));
+				HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
+				break;
+			case IIS3DWB_TIMESTAMP_TAG:
+				break;
+			default:
+				break;
+			}
+		}
+		snprintf((char *)tx_buffer, sizeof(tx_buffer), "------ \r\n\r\n");
+		HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
+
+	}
+
+// Reset FIFO
+//iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE);
+//iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE);
+
 }
 
 
+/*
+void vib_fifo_read_all_simple(void)
+{
+    uint16_t num_samples = 0;
+    iis3dwb_fifo_out_raw_t fifo_buf[256]; // adjust size as needed
+
+
+    // 1. How many samples in FIFO?
+    //if (iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples) != 0)
+    //    return;  // Error
+
+    //if (num_samples == 0)	return;  // Nothing to read
+
+    //if (num_samples > FIFO_THRESHOLD)	num_samples = FIFO_THRESHOLD;  // Safety
+
+
+    // 1. Get the number of available FIFO samples
+	iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples);
+	if (num_samples == 0 || num_samples > 256)
+		return; // nothing to read, or error
+
+    // 2. Read them all in one call
+    iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_buf, num_samples);
+
+
+    for (uint16_t i = 0; i < num_samples; i++) {
+		uint8_t tag = fifo_buf[i].tag & IIS3DWB_FIFO_TAG_MASK;
+		if (tag == IIS3DWB_XL_TAG) {
+			// Accelerometer data
+			int16_t x = (int16_t)((fifo_buf[i].data[1] << 8) | fifo_buf[i].data[0]);
+			int16_t y = (int16_t)((fifo_buf[i].data[3] << 8) | fifo_buf[i].data[2]);
+			int16_t z = (int16_t)((fifo_buf[i].data[5] << 8) | fifo_buf[i].data[4]);
+			// Process (e.g., send to UART, buffer, etc.)
+			char msg[32];
+			int len = snprintf(msg, sizeof(msg), "%d,%d,%d\r\n", x, y, z);
+			HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, HAL_MAX_DELAY);
+
+		}
+    }
 
 
 
 
 
 
+
+    // Reset FIFO
+    iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE);
+    iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE);
+}
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+void vib_fifo_read_all(void)
+{
+    iis3dwb_fifo_status_t statusFifo2;
+    uint16_t num;
+    uint16_t waterLevel;
+    uint16_t fifoLevel;
+    uint16_t i = 0;
+    int16_t data_raw_acceleration[3];
+    float acceleration_mg[512 * 3]; // Buffer to store converted acceleration data
+
+    iis3dwb_fifo_status_get(&dev_ctx, &statusFifo2);
+
+
+    if (statusFifo2.fifo_th)
+    {
+        iis3dwb_fifo_data_level_get(&dev_ctx, &num);
+
+        waterLevel = num / 3;
+        fifoLevel = waterLevel;
+        i = 0;
+
+        while (waterLevel-- > 0 || i < fifoLevel)
+        {
+            iis3dwb_fifo_out_raw_get(&dev_ctx, (uint8_t *)data_raw_acceleration);
+
+            acceleration_mg[i++] = iis3dwb_from_fs2g_to_mg(data_raw_acceleration[0]);
+            acceleration_mg[i++] = iis3dwb_from_fs2g_to_mg(data_raw_acceleration[1]);
+            acceleration_mg[i++] = iis3dwb_from_fs2g_to_mg(data_raw_acceleration[2]);
+        }
+
+        // Reset FIFO
+        iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE);
+        iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE);
+    }
+}
+*/
 
 
 

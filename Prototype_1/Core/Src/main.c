@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "vib_io.h"
 #include <string.h>
+#include <stdio.h>
 //#include "app_freertos.h"
 /* USER CODE END Includes */
 
@@ -45,7 +46,7 @@
 
 UART_HandleTypeDef huart2;
 volatile uint8_t fifo_int_flag = 0;
-volatile uint8_t count = 0;
+int count = 0;
 
 /* USER CODE BEGIN PV */
 
@@ -106,11 +107,6 @@ int main(void)
 	  HAL_Delay(2000);
 	  Error_Handler();
   }
-  else{
-	  //HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // LED1[GREEN] ON
-	  //HAL_Delay(2000);
-	  //HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin); // LED1[GREEN] ON
-  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -124,10 +120,13 @@ int main(void)
 		  fifo_int_flag = 0; // Reset the flag
 
 		  // Dump and process the FIFO
-		  vib_fifo_read_all_simple(); // This is the function from above
-		  printf("HERE I AM");
-		  count++;
-
+		  vib_read(); // This is the function from above
+		  //count++;
+		  //printf("Count: %d \n", count);
+		  // Transmit count (as text, no extra words)
+		  //char msg[24];
+		  //int len = snprintf(msg, sizeof(msg), "---------%u\r\n-----------", count);
+		  //HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, HAL_MAX_DELAY);
 	  }
 
 
@@ -347,7 +346,9 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 	if(GPIO_Pin == INT1_Pin){
 		fifo_int_flag = 1;  // Set the flag
 
-	}
+	} else {
+	      __NOP();
+	  }
 }
 /* USER CODE END 4 */
 
