@@ -17,6 +17,7 @@ void vib_fifo_read_all_simple(void);
 
 int vib_fifo_dma_read_all(void);
 
-void vib_fifo_read_all(void);
+// void vib_fifo_read_all(void);
+
 void vib_read(void);
 #endif /* VIB_IO_H */
