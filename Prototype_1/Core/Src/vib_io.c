@@ -155,9 +155,9 @@ void vib_read(void){
 			case IIS3DWB_XL_TAG:
 				snprintf((char *)tx_buffer, sizeof(tx_buffer), "%d: ACC [mg]:\t%4.0f\t%4.0f\t%4.0f\r\n",
 						k,
-						iis3dwb_from_fs8g_to_mg(*datax),
-						iis3dwb_from_fs8g_to_mg(*datay),
-						iis3dwb_from_fs8g_to_mg(*dataz));
+						iis3dwb_from_fs2g_to_mg(*datax),
+						iis3dwb_from_fs2g_to_mg(*datay),
+						iis3dwb_from_fs2g_to_mg(*dataz));
 				HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
 				break;
 			default:
