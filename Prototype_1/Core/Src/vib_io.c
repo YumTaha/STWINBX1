@@ -42,22 +42,7 @@ int _write(int file, char *ptr, int len){
 /* Provide Access via a Getter Function */
 stmdev_ctx_t* vib_io_get_ctx(void)		{return &dev_ctx;}
 
-/**
- * @brief  Initialize the IIS3DWB vibration sensor and configure it for data acquisition.
- *
- * This function performs the following:
- *  - Initializes the SPI interface for communication with the IIS3DWB sensor.
- *  - Sets up the STM32 sensor driver context with board-specific read/write functions.
- *  - Verifies the sensor is connected by reading the WHO_AM_I register.
- *  - Resets the IIS3DWB sensor to default configuration.
- *  - Configures the sensor for 3-axis measurement at 26.7 kHz, 2g full scale, with block data update.
- *  - Sets the output data filter path to 6.3 kHz bandwidth.
- *  - Enables the data-ready interrupt on INT1.
- *
- * @retval 0   Initialization and configuration successful.
- * @retval -1  SPI interface initialization failed.
- * @retval -2  IIS3DWB sensor not found (WHO_AM_I mismatch).
- */
+
 int32_t vib_io_init(void)
 
 {
@@ -169,52 +154,4 @@ void vib_read(void){
 
 	}
 }
-
-
-/*
-void vib_fifo_read_all_simple(void)
-{
-    uint16_t num_samples = 0;
-    iis3dwb_fifo_out_raw_t fifo_buf[256]; // adjust size as needed
-
-
-    // 1. How many samples in FIFO?
-    //if (iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples) != 0)
-    //    return;  // Error
-
-    //if (num_samples == 0)	return;  // Nothing to read
-
-    //if (num_samples > FIFO_THRESHOLD)	num_samples = FIFO_THRESHOLD;  // Safety
-
-
-    // 1. Get the number of available FIFO samples
-	iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples);
-	if (num_samples == 0 || num_samples > 256)
-		return; // nothing to read, or error
-
-    // 2. Read them all in one call
-    iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_buf, num_samples);
-
-
-    for (uint16_t i = 0; i < num_samples; i++) {
-		uint8_t tag = fifo_buf[i].tag & IIS3DWB_FIFO_TAG_MASK;
-		if (tag == IIS3DWB_XL_TAG) {
-			// Accelerometer data
-			int16_t x = (int16_t)((fifo_buf[i].data[1] << 8) | fifo_buf[i].data[0]);
-			int16_t y = (int16_t)((fifo_buf[i].data[3] << 8) | fifo_buf[i].data[2]);
-			int16_t z = (int16_t)((fifo_buf[i].data[5] << 8) | fifo_buf[i].data[4]);
-			// Process (e.g., send to UART, buffer, etc.)
-			char msg[32];
-			int len = snprintf(msg, sizeof(msg), "%d,%d,%d\r\n", x, y, z);
-			HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, HAL_MAX_DELAY);
-
-		}
-    }
-
-    // Reset FIFO
-    iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE);
-    iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE);
-}
-
-*/
 
