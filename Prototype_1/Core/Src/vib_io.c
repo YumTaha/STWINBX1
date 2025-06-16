@@ -39,9 +39,6 @@ int _write(int file, char *ptr, int len){
 	  ITM_SendChar((*ptr++));
   return len;
 }
-/* Provide Access via a Getter Function */
-stmdev_ctx_t* vib_io_get_ctx(void)		{return &dev_ctx;}
-
 
 int32_t vib_io_init(void)
 
