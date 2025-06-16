@@ -21,7 +21,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "vib_io.h"
 #include <string.h>
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -46,8 +45,7 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-volatile uint8_t fifo_int_flag = 0;
-int count = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,11 +98,7 @@ int main(void)
   MX_ICACHE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  if(vib_io_init() != 0){
-	  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // LED2[ORANGE] ON
-	  HAL_Delay(2000);
-	  Error_Handler();
-  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -114,18 +108,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (fifo_int_flag) {
-		  fifo_int_flag = 0; // Reset the flag
-
-		  // Dump and process the FIFO
-		  vib_read(); // This is the function from above
-		  //count++;
-		  //printf("Count: %d \n", count);
-		  // Transmit count (as text, no extra words)
-		  //char msg[24];
-		  //int len = snprintf(msg, sizeof(msg), "---------%u\r\n-----------", count);
-		  //HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, HAL_MAX_DELAY);
-	  }
 
 
   }
@@ -337,16 +319,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 {
-    //if (GPIO_Pin == INT1_Pin) { // Sends a notification to FreeRTOS that an interrupt has occured
-        //vTaskNotifyGiveFromISR(FIFO_readHandle, &xHigherPriorityTaskWoken);
-        //portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-    //}
-	if(GPIO_Pin == INT1_Pin){
-		fifo_int_flag = 1;  // Set the flag
 
-	} else {
-	      __NOP();
-	  }
 }
 /* USER CODE END 4 */
 
@@ -361,10 +334,6 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
-	  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-	  HAL_Delay(200);
-	  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-
   }
   /* USER CODE END Error_Handler_Debug */
 }
