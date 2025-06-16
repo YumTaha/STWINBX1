@@ -61,11 +61,6 @@ void Error_Handler(void);
 #define LED1_GPIO_Port GPIOH
 #define LED2_Pin GPIO_PIN_10
 #define LED2_GPIO_Port GPIOH
-#define CS_DWB_Pin GPIO_PIN_12
-#define CS_DWB_GPIO_Port GPIOF
-#define INT1_Pin GPIO_PIN_15
-#define INT1_GPIO_Port GPIOF
-#define INT1_EXTI_IRQn EXTI15_IRQn
 
 /* USER CODE BEGIN Private defines */
 
