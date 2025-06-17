@@ -117,7 +117,7 @@ int main(void)
 	if(u8Inc > 0x39){
 		u8Inc = 0x30;
 	}
-	HAL_UART_Transmit_DMA(&huart2, pTxBuff, 10);	  HAL_Delay(1000);
+	HAL_UART_Transmit_DMA(&huart2, pTxBuff, 10);	  HAL_Delay(1000); // Sends the Count: x to uart and displays it every second
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
