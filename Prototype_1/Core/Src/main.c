@@ -45,7 +45,7 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t buffer[1];
+uint8_t buffer[5];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -98,8 +98,7 @@ int main(void)
   MX_ICACHE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive(&huart2, buffer, 1, 0xFFFF);
-  HAL_UART_Transmit(&huart2, buffer, 1, 0xFFFF);
+  HAL_UART_Receive_IT(&huart2, buffer, 5);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -308,7 +307,10 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 {
 
 }
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	HAL_UART_Receive_IT(&huart2, buffer, 5);
+	HAL_UART_Transmit(&huart2, buffer, 5, 0xFFFF);
+}
 /* USER CODE END 4 */
 
 /**
