@@ -43,21 +43,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 UART_HandleTypeDef huart2;
-DMA_HandleTypeDef handle_GPDMA1_Channel11;
-DMA_NodeTypeDef Node_GPDMA1_Channel10;
-DMA_QListTypeDef List_GPDMA1_Channel10;
-DMA_HandleTypeDef handle_GPDMA1_Channel10;
 
 /* USER CODE BEGIN PV */
-uint8_t pRxBuff[10];
-uint8_t pTxBuff[10] = "Count:  \r\n";
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_GPDMA1_Init(void);
 static void MX_ICACHE_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
@@ -101,23 +95,16 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_GPDMA1_Init();
   MX_ICACHE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_DMA(&huart2, pRxBuff, 10); // starts listening for inputs to store in the pRxBuff
-  uint8_t u8Inc = 0x30; // 0x30 => ‘0’ ASCII
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	pTxBuff[7] = u8Inc++;
-	if(u8Inc > 0x39){
-		u8Inc = 0x30;
-	}
-	HAL_UART_Transmit_DMA(&huart2, pTxBuff, 10);	  HAL_Delay(1000); // Sends the Count: x to uart and displays it every second
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -195,36 +182,6 @@ static void SystemPower_Config(void)
   }
 /* USER CODE BEGIN PWR */
 /* USER CODE END PWR */
-}
-
-/**
-  * @brief GPDMA1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPDMA1_Init(void)
-{
-
-  /* USER CODE BEGIN GPDMA1_Init 0 */
-
-  /* USER CODE END GPDMA1_Init 0 */
-
-  /* Peripheral clock enable */
-  __HAL_RCC_GPDMA1_CLK_ENABLE();
-
-  /* GPDMA1 interrupt Init */
-    HAL_NVIC_SetPriority(GPDMA1_Channel10_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(GPDMA1_Channel10_IRQn);
-    HAL_NVIC_SetPriority(GPDMA1_Channel11_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(GPDMA1_Channel11_IRQn);
-
-  /* USER CODE BEGIN GPDMA1_Init 1 */
-
-  /* USER CODE END GPDMA1_Init 1 */
-  /* USER CODE BEGIN GPDMA1_Init 2 */
-
-  /* USER CODE END GPDMA1_Init 2 */
-
 }
 
 /**
@@ -350,8 +307,6 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 }
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	HAL_UART_Transmit_DMA(&huart2,(uint8_t *) "Message Received!\r\n", sizeof("Message Received!\r\n"));
-	//HAL_UART_Receive_DMA(&huart2, pRxBuff, 10); can be disabled if dma is circular
 }
 /* USER CODE END 4 */
 
