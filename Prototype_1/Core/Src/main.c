@@ -24,11 +24,14 @@
 #include <string.h>
 #include <stdio.h>
 #include "functions.h"
+#include "stm32u5xx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 uint8_t opt = 0;
+volatile FlagStatus UartReady = RESET;
+uint8_t readBuf[2] = {0}; // 1 char + null terminator
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -101,6 +104,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 printMessage:
   printWelcomeMessage();
+  HAL_UART_Receive_IT(&huart2, readBuf, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -108,10 +112,14 @@ printMessage:
   while (1)
   {
 	  opt = readUserInput();
-	  processUserInput(opt);
-	  if(opt == 3)
-	  	goto printMessage;
-
+	  if (opt > 0 && opt < 4)
+	  {
+		  processUserInput(opt);
+		  HAL_UART_Receive_IT(&huart2, readBuf, 1);
+		  if(opt == 3)
+			goto printMessage;
+	  }
+	  performCriticalTasks();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -317,9 +325,15 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 	      __NOP();
 	  }
 }
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
+	/* Set transmission flag: transfer complete*/
+	if (huart->Instance == USART2)
+		UartReady = SET;
+
 }
+
 /* USER CODE END 4 */
 
 /**
