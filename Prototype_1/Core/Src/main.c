@@ -44,13 +44,9 @@
 
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef handle_GPDMA1_Channel11;
-DMA_NodeTypeDef Node_GPDMA1_Channel10;
-DMA_QListTypeDef List_GPDMA1_Channel10;
-DMA_HandleTypeDef handle_GPDMA1_Channel10;
 
 /* USER CODE BEGIN PV */
-uint8_t pRxBuff[10];
-uint8_t pTxBuff[10] = "Count:  \r\n";
+char msg[] = "Hello! This message is transferred in DMA Mode.\r\n";
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -105,19 +101,17 @@ int main(void)
   MX_ICACHE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_DMA(&huart2, pRxBuff, 10); // starts listening for inputs to store in the pRxBuff
-  uint8_t u8Inc = 0x30; // 0x30 => ‘0’ ASCII
+  HAL_DMA_Start(&handle_GPDMA1_Channel11, (uint32_t)msg, (uint32_t)&huart2.Instance->TDR, strlen(msg));
+  huart2.Instance->CR3 |= USART_CR3_DMAT; //Enable UART in DMA mode
+  HAL_DMA_PollForTransfer(&handle_GPDMA1_Channel11, HAL_DMA_FULL_TRANSFER, HAL_MAX_DELAY); //Wait for transfer complete
+  huart2.Instance->CR3 &= ~USART_CR3_DMAT; //Disable UART DMA mode
+  HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET); //Turn LED2 ON
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	pTxBuff[7] = u8Inc++;
-	if(u8Inc > 0x39){
-		u8Inc = 0x30;
-	}
-	HAL_UART_Transmit_DMA(&huart2, pTxBuff, 10);	  HAL_Delay(1000); // Sends the Count: x to uart and displays it every second
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -213,8 +207,6 @@ static void MX_GPDMA1_Init(void)
   __HAL_RCC_GPDMA1_CLK_ENABLE();
 
   /* GPDMA1 interrupt Init */
-    HAL_NVIC_SetPriority(GPDMA1_Channel10_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(GPDMA1_Channel10_IRQn);
     HAL_NVIC_SetPriority(GPDMA1_Channel11_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(GPDMA1_Channel11_IRQn);
 
@@ -318,7 +310,6 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOI_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOH, LED1_Pin|LED2_Pin, GPIO_PIN_RESET);
@@ -330,29 +321,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PI3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
-  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
-
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
-{
 
-}
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	HAL_UART_Transmit_DMA(&huart2,(uint8_t *) "Message Received!\r\n", sizeof("Message Received!\r\n"));
-	//HAL_UART_Receive_DMA(&huart2, pRxBuff, 10); can be disabled if dma is circular
-}
 /* USER CODE END 4 */
 
 /**

@@ -56,9 +56,6 @@
 
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef handle_GPDMA1_Channel11;
-extern DMA_NodeTypeDef Node_GPDMA1_Channel10;
-extern DMA_QListTypeDef List_GPDMA1_Channel10;
-extern DMA_HandleTypeDef handle_GPDMA1_Channel10;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 
@@ -214,20 +211,6 @@ void USART2_IRQHandler(void)
   /* USER CODE BEGIN USART2_IRQn 1 */
 
   /* USER CODE END USART2_IRQn 1 */
-}
-
-/**
-  * @brief This function handles GPDMA1 Channel 10 global interrupt.
-  */
-void GPDMA1_Channel10_IRQHandler(void)
-{
-  /* USER CODE BEGIN GPDMA1_Channel10_IRQn 0 */
-
-  /* USER CODE END GPDMA1_Channel10_IRQn 0 */
-  HAL_DMA_IRQHandler(&handle_GPDMA1_Channel10);
-  /* USER CODE BEGIN GPDMA1_Channel10_IRQn 1 */
-
-  /* USER CODE END GPDMA1_Channel10_IRQn 1 */
 }
 
 /**
