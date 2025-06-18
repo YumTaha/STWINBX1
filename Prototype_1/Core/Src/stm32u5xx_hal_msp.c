@@ -118,13 +118,13 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
     /* USART2 DMA Init */
-    /* GPDMA1_REQUEST_USART2_TX Init */
+    /* GPDMA1_REQUEST_USART2_RX Init */
     handle_GPDMA1_Channel11.Instance = GPDMA1_Channel11;
-    handle_GPDMA1_Channel11.Init.Request = GPDMA1_REQUEST_USART2_TX;
+    handle_GPDMA1_Channel11.Init.Request = GPDMA1_REQUEST_USART2_RX;
     handle_GPDMA1_Channel11.Init.BlkHWRequest = DMA_BREQ_SINGLE_BURST;
     handle_GPDMA1_Channel11.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    handle_GPDMA1_Channel11.Init.SrcInc = DMA_SINC_INCREMENTED;
-    handle_GPDMA1_Channel11.Init.DestInc = DMA_DINC_FIXED;
+    handle_GPDMA1_Channel11.Init.SrcInc = DMA_SINC_FIXED;
+    handle_GPDMA1_Channel11.Init.DestInc = DMA_DINC_INCREMENTED;
     handle_GPDMA1_Channel11.Init.SrcDataWidth = DMA_SRC_DATAWIDTH_BYTE;
     handle_GPDMA1_Channel11.Init.DestDataWidth = DMA_DEST_DATAWIDTH_BYTE;
     handle_GPDMA1_Channel11.Init.Priority = DMA_LOW_PRIORITY_LOW_WEIGHT;
@@ -138,7 +138,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
       Error_Handler();
     }
 
-    __HAL_LINKDMA(huart, hdmatx, handle_GPDMA1_Channel11);
+    __HAL_LINKDMA(huart, hdmarx, handle_GPDMA1_Channel11);
 
     if (HAL_DMA_ConfigChannelAttributes(&handle_GPDMA1_Channel11, DMA_CHANNEL_NPRIV) != HAL_OK)
     {
@@ -179,7 +179,7 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     HAL_GPIO_DeInit(GPIOD, GPIO_PIN_6|GPIO_PIN_5);
 
     /* USART2 DMA DeInit */
-    HAL_DMA_DeInit(huart->hdmatx);
+    HAL_DMA_DeInit(huart->hdmarx);
 
     /* USART2 interrupt DeInit */
     HAL_NVIC_DisableIRQ(USART2_IRQn);

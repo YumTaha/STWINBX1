@@ -46,7 +46,8 @@ UART_HandleTypeDef huart2;
 DMA_HandleTypeDef handle_GPDMA1_Channel11;
 
 /* USER CODE BEGIN PV */
-char msg[] = "Hello! This message is transferred in DMA Mode.\r\n";
+uint8_t dataArrived_Flag = 0;
+uint8_t data[3];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -101,17 +102,15 @@ int main(void)
   MX_ICACHE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_DMA_Start(&handle_GPDMA1_Channel11, (uint32_t)msg, (uint32_t)&huart2.Instance->TDR, strlen(msg)); // Starts DMA
-  huart2.Instance->CR3 |= USART_CR3_DMAT; //Enable UART in DMA mode
-  HAL_DMA_PollForTransfer(&handle_GPDMA1_Channel11, HAL_DMA_FULL_TRANSFER, HAL_MAX_DELAY); //Wait for transfer complete
-  huart2.Instance->CR3 &= ~USART_CR3_DMAT; //Disable UART DMA mode
-  HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET); //Turn LED2 ON
+  HAL_UART_Receive_DMA(&huart2, data, 3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -327,6 +326,11 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+//This callback is automatically called by the HAL when the DMA transfer is completed
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+	HAL_UART_Receive_DMA(&huart2, data, 3);
+}
 
 /* USER CODE END 4 */
 
