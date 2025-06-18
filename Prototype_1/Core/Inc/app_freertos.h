@@ -1,9 +1,8 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : main.h
-  * @brief          : Header for main.c file.
-  *                   This file contains the common defines of the application.
+  * File Name          : app_freertos.h
+  * Description        : FreeRTOS applicative header file
   ******************************************************************************
   * @attention
   *
@@ -19,15 +18,17 @@
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __MAIN_H
-#define __MAIN_H
+#ifndef __APP_FREERTOS_H
+#define __APP_FREERTOS_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 /* Includes ------------------------------------------------------------------*/
-#include "stm32u5xx_hal.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "main.h"
+#include "cmsis_os2.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -44,35 +45,35 @@ extern "C" {
 
 /* USER CODE END EC */
 
-/* Exported macro ------------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* Exported macro -------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
 /* USER CODE END EM */
+extern osThreadId_t VibTaskHandle;
+extern osThreadId_t LedTaskHandle;
+extern osSemaphoreId_t fifoSemHandle;
 
-/* Exported functions prototypes ---------------------------------------------*/
-void Error_Handler(void);
+/* Exported function prototypes -----------------------------------------------*/
+/* USER CODE BEGIN FunctionPrototypes */
 
-/* USER CODE BEGIN EFP */
+/* USER CODE END FunctionPrototypes */
 
-/* USER CODE END EFP */
+void VibTask(void *argument);
+void LedTask(void *argument);
 
-/* Private defines -----------------------------------------------------------*/
-#define LED1_Pin GPIO_PIN_12
-#define LED1_GPIO_Port GPIOH
-#define LED2_Pin GPIO_PIN_10
-#define LED2_GPIO_Port GPIOH
-#define CS_DWB_Pin GPIO_PIN_12
-#define CS_DWB_GPIO_Port GPIOF
-#define INT1_Pin GPIO_PIN_15
-#define INT1_GPIO_Port GPIOF
-#define INT1_EXTI_IRQn EXTI15_IRQn
+void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
-/* USER CODE BEGIN Private defines */
+/* Private application code --------------------------------------------------*/
+/* USER CODE BEGIN Application */
 
-/* USER CODE END Private defines */
+/* USER CODE END Application */
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __MAIN_H */
+#endif /* __APP_FREERTOS_H */
