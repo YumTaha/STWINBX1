@@ -56,7 +56,8 @@ extern "C" {
 /* USER CODE END EM */
 extern osThreadId_t VibTaskHandle;
 extern osThreadId_t LedTaskHandle;
-extern osSemaphoreId_t fifoSemHandle;
+extern osSemaphoreId_t myBinarySem01Handle;
+extern osSemaphoreId_t myBinarySem02Handle;
 
 /* Exported function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -68,6 +69,8 @@ void LedTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
+/* Hook prototypes */
+void vApplicationStackOverflowHook(xTaskHandle xTask, char *pcTaskName);
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 

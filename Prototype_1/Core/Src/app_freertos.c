@@ -49,7 +49,7 @@ osThreadId_t VibTaskHandle;
 const osThreadAttr_t VibTask_attributes = {
   .name = "VibTask",
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 256 * 4
+  .stack_size = 512 * 4
 };
 /* Definitions for LedTask */
 osThreadId_t LedTaskHandle;
@@ -58,16 +58,30 @@ const osThreadAttr_t LedTask_attributes = {
   .priority = (osPriority_t) osPriorityLow,
   .stack_size = 128 * 4
 };
-/* Definitions for fifoSem */
-osSemaphoreId_t fifoSemHandle;
-const osSemaphoreAttr_t fifoSem_attributes = {
-  .name = "fifoSem"
+/* Definitions for myBinarySem01 */
+osSemaphoreId_t myBinarySem01Handle;
+const osSemaphoreAttr_t myBinarySem01_attributes = {
+  .name = "myBinarySem01"
+};
+/* Definitions for myBinarySem02 */
+osSemaphoreId_t myBinarySem02Handle;
+const osSemaphoreAttr_t myBinarySem02_attributes = {
+  .name = "myBinarySem02"
 };
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
+
+/* USER CODE BEGIN 4 */
+void vApplicationStackOverflowHook(xTaskHandle xTask, char *pcTaskName)
+{
+   /* Run time stack overflow checking is performed if
+   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
+   called if a stack overflow is detected. */
+}
+/* USER CODE END 4 */
 
 /**
   * @brief  FreeRTOS initialization
@@ -82,11 +96,16 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
-  /* creation of fifoSem */
-  fifoSemHandle = osSemaphoreNew(1, 1, &fifoSem_attributes);
+  /* creation of myBinarySem01 */
+  myBinarySem01Handle = osSemaphoreNew(1, 1, &myBinarySem01_attributes);
+
+  /* creation of myBinarySem02 */
+  myBinarySem02Handle = osSemaphoreNew(1, 1, &myBinarySem02_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+  osSemaphoreAcquire(myBinarySem02Handle, 10);
+
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -125,10 +144,13 @@ void VibTask(void *argument)
 	for(;;)
 		{
 		// Wait for FIFO interrupt (from EXTI)
-		osSemaphoreAcquire(fifoSemHandle, osWaitForever);// wait until semaphore is released by FIFO interrupt
-		vib_read_binary();
-
-		osDelay(1);
+		//osSemaphoreAcquire(fifoSemHandle, osWaitForever);// wait until semaphore is released by FIFO interrupt
+		//vib_read();
+		//osDelay(1);
+		osSemaphoreAcquire(myBinarySem01Handle, osWaitForever);
+		osDelay(250);
+		HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+		osSemaphoreRelease(myBinarySem01Handle);
 		}
   /* USER CODE END VibTask */
 }
@@ -146,8 +168,10 @@ void LedTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
+	  osSemaphoreAcquire(myBinarySem02Handle, osWaitForever);
 	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 	  osDelay(500);
+	  osSemaphoreRelease(myBinarySem02Handle);
   }
   /* USER CODE END LedTask */
 }

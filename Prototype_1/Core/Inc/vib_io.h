@@ -8,6 +8,6 @@
 /* call once at startup. returns 0 on success */
 int32_t  vib_io_init(void);
 
-void vib_read_binary(void);
+void vib_read(void);
 
 #endif /* VIB_IO_H */

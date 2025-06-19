@@ -114,7 +114,7 @@ int main(void)
   osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
-  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -319,7 +319,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(INT1_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI15_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -330,9 +330,10 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 {
-    if (GPIO_Pin == INT1_Pin) { // release the semaphore so that the read fifo task can work
+    /*if (GPIO_Pin == INT1_Pin) { // release the semaphore so that the read fifo task can work
     	osSemaphoreRelease(fifoSemHandle);
-    }
+    	HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+    }*/
 }
 /* USER CODE END 4 */
 

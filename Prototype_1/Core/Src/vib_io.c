@@ -2,12 +2,11 @@
 #include "iis3dwb_reg.h"
 #include "steval_stwinbx1_bus.h"
 #include "main.h"      // for CS_DWB_GPIO_Port, CS_DWB_Pin
-//#include "cmsis_os.h"       // For FreeRTOS semaphore
 #include <string.h>
 #include "stdio.h"
 
 extern UART_HandleTypeDef huart2;
-#define FIFO_WATERMARK    300
+#define FIFO_WATERMARK    256
 
 static stmdev_ctx_t dev_ctx;
 
@@ -37,6 +36,9 @@ int _write(int file, char *ptr, int len){
 	  ITM_SendChar((*ptr++));
   return len;
 }
+/* Provide Access via a Getter Function */
+stmdev_ctx_t* vib_io_get_ctx(void)		{return &dev_ctx;}
+
 
 int32_t vib_io_init(void)
 
@@ -66,52 +68,62 @@ int32_t vib_io_init(void)
   } while (rst);
 
   /* 5) basic configuration/fifo */
-  iis3dwb_block_data_update_set(&dev_ctx, PROPERTY_ENABLE);
-  iis3dwb_xl_full_scale_set(&dev_ctx, IIS3DWB_2g);
+  iis3dwb_block_data_update_set(&dev_ctx, PROPERTY_ENABLE); /* Enable Block Data Update */ // Important if you are reading acceleration
+  iis3dwb_xl_full_scale_set(&dev_ctx, IIS3DWB_2g); /* Set full scale */
+  iis3dwb_i2c_interface_set(&dev_ctx, PROPERTY_ENABLE); /* Disable I2C */ // Not important
   iis3dwb_fifo_watermark_set(&dev_ctx, FIFO_WATERMARK); // 1. Set FIFO threshold (samples)
+  iis3dwb_fifo_xl_batch_set(&dev_ctx, IIS3DWB_XL_BATCHED_AT_26k7Hz);
   iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // 2. Set FIFO mode to stop collecting data when FIFO is full
-  /* Set data rate to 26,667 times per second */
-    iis3dwb_xl_data_rate_set(&dev_ctx, IIS3DWB_XL_ODR_26k7Hz);
+
 
   /* 6) enable FIFO threshold interrupt on INT1 */
-  iis3dwb_pin_int1_route_t int1_route = {0};
+  iis3dwb_pin_int1_route_t int1_route;
   int1_route.fifo_th = 1; // Enable FIFO threshold interrupt
   iis3dwb_pin_int1_route_set(&dev_ctx, &int1_route);
 
-
+  /* Set Output Data Rate */
+  iis3dwb_xl_data_rate_set(&dev_ctx, IIS3DWB_XL_ODR_26k7Hz);
 
   return 0;
 }
 
-static iis3dwb_fifo_out_raw_t fifo_data[FIFO_WATERMARK];
-iis3dwb_fifo_status_t fifo_status;
 
-/* Read incoming raw data and print them through UART2 */
-void vib_read_binary(void)
-{
-    char msg[32];
 
+/*
+
+void vib_read(void){
     uint16_t num = 0;
+    uint16_t num_samples = 15, num_fifo; // How many entries of FIFO to print
 
-    // Read FIFO status
+    char msg[16];
+    static iis3dwb_fifo_out_raw_t fifo_data[FIFO_WATERMARK];
+    iis3dwb_fifo_status_t fifo_status;
+    static uint8_t tx_buffer[30];
+
+    // Read watermark flag
     iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
-    snprintf(msg, sizeof(msg), "FIFO level: %u\r\n", fifo_status.fifo_level);
-	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 
-    if (fifo_status.fifo_th)
-    {
+    // Print value after it is set
+    int len = snprintf(msg, sizeof(msg), "-%u\r\n", fifo_status.fifo_level);
+    HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, HAL_MAX_DELAY);
+
+    if (fifo_status.fifo_th == 1) {
         num = fifo_status.fifo_level;
+        iis3dwb_fifo_data_level_get(&dev_ctx, &num_fifo);
 
-        // Print FIFO level before reading
-        snprintf(msg, sizeof(msg), "FIFO before: %u\r\n", num);
-        HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+        snprintf((char *)tx_buffer, sizeof(tx_buffer), "\r\n data level %d \r\n", num_fifo);
+        HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), HAL_MAX_DELAY);
 
+        // read out all FIFO entries in a single read
         iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_data, num);
 
-        // Read FIFO status again after draining
-        iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
-        snprintf(msg, sizeof(msg), "FIFO after: %u\r\n", fifo_status.fifo_level);
-        HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+        // Clear FIFO #########IMPORTANT#########
+        iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE); // Disable and Clears FIFO mode
+        iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // Enable FIFO mode
+
+        // Print raw data of XYZ
+        HAL_UART_Transmit(&huart2, (uint8_t*)fifo_data, num_samples * sizeof(iis3dwb_fifo_out_raw_t), HAL_MAX_DELAY);
     }
 }
 
+*/
