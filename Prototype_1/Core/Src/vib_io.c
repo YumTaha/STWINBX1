@@ -2,14 +2,11 @@
 #include "iis3dwb_reg.h"
 #include "steval_stwinbx1_bus.h"
 #include "main.h"      // for CS_DWB_GPIO_Port, CS_DWB_Pin
-//#include "cmsis_os.h"       // For FreeRTOS semaphore
 #include <string.h>
 #include "stdio.h"
-//#include "app_freertos.h"
 
 extern UART_HandleTypeDef huart2;
-//#define IIS3DWB_FIFO_TAG_MASK   0xF8
-#define FIFO_WATERMARK    256
+#define FIFO_WATERMARK    500
 
 static stmdev_ctx_t dev_ctx;
 
@@ -39,8 +36,6 @@ int _write(int file, char *ptr, int len){
 	  ITM_SendChar((*ptr++));
   return len;
 }
-/* Provide Access via a Getter Function */
-stmdev_ctx_t* vib_io_get_ctx(void)		{return &dev_ctx;}
 
 
 int32_t vib_io_init(void)
@@ -80,7 +75,7 @@ int32_t vib_io_init(void)
 
 
   /* 6) enable FIFO threshold interrupt on INT1 */
-  iis3dwb_pin_int1_route_t int1_route;
+  iis3dwb_pin_int1_route_t int1_route = {0};
   int1_route.fifo_th = 1; // Enable FIFO threshold interrupt
   iis3dwb_pin_int1_route_set(&dev_ctx, &int1_route);
 
@@ -92,35 +87,44 @@ int32_t vib_io_init(void)
 
 
 
-static iis3dwb_fifo_out_raw_t fifo_data[FIFO_WATERMARK];
+static iis3dwb_fifo_out_raw_t fifo_data[5000];
+static iis3dwb_fifo_out_raw_t *current = fifo_data;
+static uint32_t fifo_level = 0;
 iis3dwb_fifo_status_t fifo_status;
-static uint8_t tx_buffer[30];
 
-void vib_read(void){
-	uint16_t num = 0;
-    uint16_t num_samples = 15, num_fifo; // How many entries of FIFO to print
+void vib_read(void) {
+    uint16_t num = 0;
 
-	/* Read watermark flag */
-	iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
+    // Read FIFO status
+    iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
 
-	if (fifo_status.fifo_th == 1) {
-		num = fifo_status.fifo_level;
-		iis3dwb_fifo_data_level_get(&dev_ctx, &num_fifo);
+    if (fifo_status.fifo_th == 1) {
+        num = fifo_status.fifo_level;
 
-		snprintf((char *)tx_buffer, sizeof(tx_buffer), "\r\n data level %d \r\n", num_fifo);
-		HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), HAL_MAX_DELAY);
+        // Make sure we don't write past the end of the buffer
+        if (fifo_level + num > 5000) {
+            // Reset buffer if overrun would occur
+            current = fifo_data;
+            fifo_level = 0;
+        }
 
-		/* read out all FIFO entries in a single read */
-		iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_data, num);
+        // Read out FIFO entries in a single read
+        iis3dwb_fifo_out_multi_raw_get(&dev_ctx, current, num);
 
-		// Clear FIFO #########IMPORTANT#########
-		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE); // Disable and Clears FIFO mode
-		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // Enable FIFO mode
+        current += num;         // Advance pointer
+        fifo_level += num;      // Track number of samples
+    }
 
-		// Print raw data of XYZ
-		HAL_UART_Transmit(&huart2, (uint8_t*)fifo_data, num_samples * sizeof(iis3dwb_fifo_out_raw_t), HAL_MAX_DELAY);
-
-
-	}
+    // Optionally reset buffer after enough samples
+    if (fifo_level >= 4000) {
+    	// Disable and write the buffer to uart, then reset buffer variables re-enable and continue
+        current = fifo_data;
+        fifo_level = 0;
+    }
 }
 
+
+void get_status(void){
+
+	iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
+}

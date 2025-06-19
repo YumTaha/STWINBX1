@@ -100,11 +100,7 @@ int main(void)
   MX_ICACHE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  if(vib_io_init() != 0){
-	  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin); // LED2[ORANGE] ON
-	  HAL_Delay(2000);
-	  Error_Handler();
-  }
+  if(vib_io_init() != 0)	Error_Handler();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -112,19 +108,13 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  get_status();
     /* USER CODE BEGIN 3 */
 	  if (fifo_int_flag) {
-		  fifo_int_flag = 0; // Reset the flag
-
 		  // Dump and process the FIFO
-		  vib_read(); // This is the function from above
-		  //count++;
-		  //printf("Count: %d \n", count);
-		  // Transmit count (as text, no extra words)
-		  //char msg[24];
-		  //int len = snprintf(msg, sizeof(msg), "---------%u\r\n-----------", count);
-		  //HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, HAL_MAX_DELAY);
+		  vib_read();
+
+		  fifo_int_flag = 0; // Reset the flag
 	  }
 
 
