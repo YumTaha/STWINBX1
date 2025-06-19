@@ -71,19 +71,20 @@ int32_t vib_io_init(void)
   } while (rst);
 
   /* 5) basic configuration/fifo */
-  iis3dwb_block_data_update_set(&dev_ctx, PROPERTY_ENABLE);
-  iis3dwb_xl_full_scale_set(&dev_ctx, IIS3DWB_2g);
+  iis3dwb_block_data_update_set(&dev_ctx, PROPERTY_ENABLE); /* Enable Block Data Update */ // Important if you are reading acceleration
+  iis3dwb_xl_full_scale_set(&dev_ctx, IIS3DWB_2g); /* Set full scale */
+  iis3dwb_i2c_interface_set(&dev_ctx, PROPERTY_ENABLE); /* Disable I2C */ // Not important
   iis3dwb_fifo_watermark_set(&dev_ctx, FIFO_WATERMARK); // 1. Set FIFO threshold (samples)
   iis3dwb_fifo_xl_batch_set(&dev_ctx, IIS3DWB_XL_BATCHED_AT_26k7Hz);
   iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // 2. Set FIFO mode to stop collecting data when FIFO is full
 
 
   /* 6) enable FIFO threshold interrupt on INT1 */
-  iis3dwb_pin_int1_route_t int1_route = {0};
+  iis3dwb_pin_int1_route_t int1_route;
   int1_route.fifo_th = 1; // Enable FIFO threshold interrupt
   iis3dwb_pin_int1_route_set(&dev_ctx, &int1_route);
 
-  /* Set data rate to 26,667 times per second */
+  /* Set Output Data Rate */
   iis3dwb_xl_data_rate_set(&dev_ctx, IIS3DWB_XL_ODR_26k7Hz);
 
   return 0;
@@ -95,7 +96,7 @@ int32_t vib_io_init(void)
 
 static iis3dwb_fifo_out_raw_t fifo_data[FIFO_WATERMARK];
 iis3dwb_fifo_status_t fifo_status;
-static uint8_t tx_buffer[2000];
+static uint8_t tx_buffer[1000];
 
 static int16_t *datax;
 static int16_t *datay;
@@ -113,20 +114,23 @@ void vib_read(void){
 	if (fifo_status.fifo_th == 1) {
 		num = fifo_status.fifo_level;
 		iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples);
+
 		snprintf((char *)tx_buffer, sizeof(tx_buffer), "-- FIFO num %d : data level %d \r\n", num, num_samples);
 		HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
 
 		/* read out all FIFO entries in a single read */
 		iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_data, num);
-		// Reset FIFO
-		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE);
-		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE);
+
+		// Clear FIFO #########IMPORTANT#########
+		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE); // Disable and Clears FIFO mode
+		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // Enable FIFO mode
+
 
 		for (k = 0; k < num; k++) {
 			iis3dwb_fifo_out_raw_t *f_data;
 
 			/* print out first two and last two FIFO entries only */
-			if (k > 1 && k < num - 2)	continue;
+			if (k > 0 && k < num - 1)	continue;
 
 			f_data = &fifo_data[k];
 
