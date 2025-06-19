@@ -92,31 +92,23 @@ int32_t vib_io_init(void)
 
 
 
-
-
 static iis3dwb_fifo_out_raw_t fifo_data[FIFO_WATERMARK];
 iis3dwb_fifo_status_t fifo_status;
-static uint8_t tx_buffer[1000];
-
-static int16_t *datax;
-static int16_t *datay;
-static int16_t *dataz;
-static int32_t *ts;
+static uint8_t tx_buffer[30];
 
 void vib_read(void){
-	uint16_t num = 0, k;
-    uint16_t num_samples = 0;
-
+	uint16_t num = 0;
+    uint16_t num_samples = 15, num_fifo; // How many entries of FIFO to print
 
 	/* Read watermark flag */
 	iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
 
 	if (fifo_status.fifo_th == 1) {
 		num = fifo_status.fifo_level;
-		iis3dwb_fifo_data_level_get(&dev_ctx, &num_samples);
+		iis3dwb_fifo_data_level_get(&dev_ctx, &num_fifo);
 
-		snprintf((char *)tx_buffer, sizeof(tx_buffer), "-- FIFO num %d : data level %d \r\n", num, num_samples);
-		HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
+		snprintf((char *)tx_buffer, sizeof(tx_buffer), "\r\n data level %d \r\n", num_fifo);
+		HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), HAL_MAX_DELAY);
 
 		/* read out all FIFO entries in a single read */
 		iis3dwb_fifo_out_multi_raw_get(&dev_ctx, fifo_data, num);
@@ -125,36 +117,9 @@ void vib_read(void){
 		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_BYPASS_MODE); // Disable and Clears FIFO mode
 		iis3dwb_fifo_mode_set(&dev_ctx, IIS3DWB_STREAM_MODE); // Enable FIFO mode
 
+		// Print raw data of XYZ
+		HAL_UART_Transmit(&huart2, (uint8_t*)fifo_data, num_samples * sizeof(iis3dwb_fifo_out_raw_t), HAL_MAX_DELAY);
 
-		for (k = 0; k < num; k++) {
-			iis3dwb_fifo_out_raw_t *f_data;
-
-			/* print out first two and last two FIFO entries only */
-			if (k > 0 && k < num - 1)	continue;
-
-			f_data = &fifo_data[k];
-
-			/* Read FIFO sensor value */
-			datax = (int16_t *)&f_data->data[0];
-			datay = (int16_t *)&f_data->data[2];
-			dataz = (int16_t *)&f_data->data[4];
-			ts = (int32_t *)&f_data->data[0];
-
-			switch (f_data->tag >> 3) {
-			case IIS3DWB_XL_TAG:
-				snprintf((char *)tx_buffer, sizeof(tx_buffer), "%d: ACC [mg]:\t%4.0f\t%4.0f\t%4.0f\r\n",
-						k,
-						iis3dwb_from_fs2g_to_mg(*datax),
-						iis3dwb_from_fs2g_to_mg(*datay),
-						iis3dwb_from_fs2g_to_mg(*dataz));
-				HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
-				break;
-			default:
-				break;
-			}
-		}
-		snprintf((char *)tx_buffer, sizeof(tx_buffer), "------ \r\n\r\n");
-		HAL_UART_Transmit(&huart2, tx_buffer, strlen((char const *)tx_buffer), 1000);
 
 	}
 }
