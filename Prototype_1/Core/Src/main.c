@@ -108,7 +108,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  get_status();
+	  get_fifo_status();
     /* USER CODE BEGIN 3 */
 	  if (fifo_int_flag) {
 		  // Dump and process the FIFO
@@ -353,8 +353,6 @@ void Error_Handler(void)
   {
 	  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
 	  HAL_Delay(200);
-	  HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-
   }
   /* USER CODE END Error_Handler_Debug */
 }

@@ -10,5 +10,6 @@ int32_t  vib_io_init(void);
 
 void vib_read(void);
 
-void get_status(void);
+void get_fifo_status(void);
+
 #endif /* VIB_IO_H */
