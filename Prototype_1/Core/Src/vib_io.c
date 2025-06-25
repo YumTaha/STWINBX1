@@ -7,6 +7,7 @@
 
 extern UART_HandleTypeDef huart2;
 #define FIFO_WATERMARK    500
+#define SAMPLE  106668
 
 static stmdev_ctx_t dev_ctx;
 
@@ -87,7 +88,7 @@ int32_t vib_io_init(void)
 
 
 
-static iis3dwb_fifo_out_raw_t fifo_data[5000];
+static iis3dwb_fifo_out_raw_t fifo_data[SAMPLE]; // Container for multiple seconds sensor data
 static iis3dwb_fifo_out_raw_t *current = fifo_data;
 static uint32_t fifo_level = 0;
 iis3dwb_fifo_status_t fifo_status;
@@ -102,7 +103,7 @@ void vib_read(void) {
         num = fifo_status.fifo_level;
 
         // Make sure we don't write past the end of the buffer
-        if (fifo_level + num > 5000) {
+        if (fifo_level + num > SAMPLE) {
             // Reset buffer if overrun would occur
             current = fifo_data;
             fifo_level = 0;
@@ -116,10 +117,15 @@ void vib_read(void) {
     }
 
     // Optionally reset buffer after enough samples
-    if (fifo_level >= 4000) {
+    if (fifo_level >= 100000) {
     	// Disable and write the buffer to uart, then reset buffer variables re-enable and continue
         current = fifo_data;
         fifo_level = 0;
+
+        // Disable
+        iis3dwb_xl_data_rate_set(&dev_ctx, IIS3DWB_XL_ODR_OFF);
+        HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+
     }
 }
 
