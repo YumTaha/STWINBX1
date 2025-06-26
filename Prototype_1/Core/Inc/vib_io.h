@@ -1,26 +1,41 @@
 #ifndef VIB_IO_H
 #define VIB_IO_H
 
-#include "iis3dwb_reg.h"
+#include "vib_sensor.h"
+#include "vib_comm.h"
 #include "stm32u5xx_hal.h"
+#include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef struct {
-    uint8_t *data_ptr;
-    uint32_t bytes_remaining;
-    uint8_t busy;
-} uart_dma_transfer_t;
+/* ============================================================================
+ * HIGH-LEVEL VIBRATION I/O INTERFACE
+ * ============================================================================ */
 
+/* Initialize the complete vibration I/O system (sensor + communication)
+ * Returns: 0 on success, negative on error */
+int32_t vib_io_init(void);
 
-/* call once at startup. returns 0 on success */
-int32_t  vib_io_init(void);
+/* Main vibration data processing function
+ * Should be called periodically from main loop or interrupt handler
+ * Handles sensor data acquisition and automatic transmission */
+void vib_io_process(void);
 
-void vib_read(void);
+/* UART DMA transmission complete callback
+ * Should be called from HAL_UART_TxCpltCallback in main.c */
+void vib_io_uart_tx_complete_callback(UART_HandleTypeDef *huart);
 
-void get_fifo_status(void);
+/* ============================================================================
+ * UTILITY/DEBUG FUNCTIONS
+ * ============================================================================ */
 
-void send_buffer_UART_DMA_nb(const iis3dwb_fifo_out_raw_t *buffer, uint32_t num_samples);
+/* Debug printf wrapper for ITM (if needed) */
+int _write(int file, char *ptr, int len);
 
-void vib_uart_dma_tx_cplt_cb(UART_HandleTypeDef *huart);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* VIB_IO_H */

@@ -48,7 +48,6 @@ DMA_HandleTypeDef handle_GPDMA1_Channel11;
 
 /* USER CODE BEGIN PV */
 volatile uint8_t fifo_int_flag = 0;
-int count = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -110,12 +109,14 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  vib_sensor_get_fifo_status();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
 	  if (fifo_int_flag) {
-		  // Dump and process the FIFO
-		  vib_read();
+		  // Process the FIFO data and handle transmission
+		  vib_io_process();
 
 		  fifo_int_flag = 0; // Reset the flag
 	  }
@@ -371,7 +372,7 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-    vib_uart_dma_tx_cplt_cb(huart); // Forward to vib_io, you implement logic there!
+	vib_io_uart_tx_complete_callback(huart); // Forward to vib_io, you implement logic there!
 }
 /* USER CODE END 4 */
 
