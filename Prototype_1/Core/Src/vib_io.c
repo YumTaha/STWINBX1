@@ -15,6 +15,13 @@ extern UART_HandleTypeDef huart2;
 static stmdev_ctx_t dev_ctx;
 
 
+static iis3dwb_fifo_out_raw_t fifo_data[SAMPLE]; // Container for multiple seconds sensor data
+static iis3dwb_fifo_out_raw_t *current = fifo_data;
+static uint32_t fifo_level = 0;
+iis3dwb_fifo_status_t fifo_status;
+
+uart_dma_transfer_t uart_dma_tx = {0};
+
 
 /*  SPI write wrapper: assert CS, send reg & data, de-assert CS */
 static int32_t  drv_write(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len) {
@@ -40,6 +47,12 @@ int _write(int file, char *ptr, int len){
   for(i=0 ; i<len ; i++)
 	  ITM_SendChar((*ptr++));
   return len;
+}
+
+
+void get_fifo_status(void){
+
+	iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
 }
 
 
@@ -85,12 +98,6 @@ int32_t vib_io_init(void) {
 }
 
 
-
-static iis3dwb_fifo_out_raw_t fifo_data[SAMPLE]; // Container for multiple seconds sensor data
-static iis3dwb_fifo_out_raw_t *current = fifo_data;
-static uint32_t fifo_level = 0;
-iis3dwb_fifo_status_t fifo_status;
-
 void vib_read(void) {
     uint16_t samples_to_read = 0;
 
@@ -131,7 +138,9 @@ void vib_read(void) {
         HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 
         // (c) Process or transmit the buffer here
-        // Example: send_buffer_via_uart(fifo_data, fifo_level);
+        if (!uart_dma_tx.busy) {
+			send_buffer_UART_DMA_nb(fifo_data, fifo_level);
+		}
 
         // (d) Reset buffer state
         current = fifo_data;
@@ -140,7 +149,37 @@ void vib_read(void) {
 }
 
 
-void get_fifo_status(void){
+void send_buffer_UART_DMA_nb(const iis3dwb_fifo_out_raw_t *buffer, uint32_t num_samples)
+{
+    if (uart_dma_tx.busy) return; // Already in progress
 
-	iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
+    uart_dma_tx.data_ptr = (uint8_t*)buffer;
+    uart_dma_tx.bytes_remaining = num_samples * sizeof(iis3dwb_fifo_out_raw_t);
+    uart_dma_tx.busy = 1;
+
+    uint16_t chunk = (uart_dma_tx.bytes_remaining > 0xFFFF) ? 0xFFFF : uart_dma_tx.bytes_remaining;
+
+    if (HAL_UART_Transmit_DMA(&huart2, uart_dma_tx.data_ptr, chunk) != HAL_OK) {
+        uart_dma_tx.busy = 0;
+        Error_Handler();
+    }
+    uart_dma_tx.bytes_remaining -= chunk;
+    uart_dma_tx.data_ptr += chunk;
+}
+
+void vib_uart_dma_tx_cplt_cb(UART_HandleTypeDef *huart)
+{
+    if (huart != &huart2) return;
+    if (uart_dma_tx.bytes_remaining > 0) {
+        uint16_t chunk = (uart_dma_tx.bytes_remaining > 0xFFFF) ? 0xFFFF : uart_dma_tx.bytes_remaining;
+        if (HAL_UART_Transmit_DMA(&huart2, uart_dma_tx.data_ptr, chunk) != HAL_OK) {
+            uart_dma_tx.busy = 0;
+            Error_Handler();
+        }
+        uart_dma_tx.bytes_remaining -= chunk;
+        uart_dma_tx.data_ptr += chunk;
+    } else {
+        uart_dma_tx.busy = 0; // Transfer finished
+        // You can set a flag, notify a task, etc. here!
+    }
 }

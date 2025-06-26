@@ -44,6 +44,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef handle_GPDMA1_Channel11;
 
 /* USER CODE BEGIN PV */
 volatile uint8_t fifo_int_flag = 0;
@@ -54,6 +55,7 @@ int count = 0;
 void SystemClock_Config(void);
 static void SystemPower_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_GPDMA1_Init(void);
 static void MX_ICACHE_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
@@ -97,6 +99,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_GPDMA1_Init();
   MX_ICACHE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -108,7 +111,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  get_fifo_status();
+
     /* USER CODE BEGIN 3 */
 	  if (fifo_int_flag) {
 		  // Dump and process the FIFO
@@ -195,6 +198,34 @@ static void SystemPower_Config(void)
 }
 
 /**
+  * @brief GPDMA1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPDMA1_Init(void)
+{
+
+  /* USER CODE BEGIN GPDMA1_Init 0 */
+
+  /* USER CODE END GPDMA1_Init 0 */
+
+  /* Peripheral clock enable */
+  __HAL_RCC_GPDMA1_CLK_ENABLE();
+
+  /* GPDMA1 interrupt Init */
+    HAL_NVIC_SetPriority(GPDMA1_Channel11_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel11_IRQn);
+
+  /* USER CODE BEGIN GPDMA1_Init 1 */
+
+  /* USER CODE END GPDMA1_Init 1 */
+  /* USER CODE BEGIN GPDMA1_Init 2 */
+
+  /* USER CODE END GPDMA1_Init 2 */
+
+}
+
+/**
   * @brief ICACHE Initialization Function
   * @param None
   * @retval None
@@ -238,7 +269,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 921600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -283,10 +314,9 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOI_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
@@ -337,6 +367,11 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 	} else {
 	      __NOP();
 	  }
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    vib_uart_dma_tx_cplt_cb(huart); // Forward to vib_io, you implement logic there!
 }
 /* USER CODE END 4 */
 
