@@ -180,6 +180,6 @@ void vib_uart_dma_tx_cplt_cb(UART_HandleTypeDef *huart)
         uart_dma_tx.data_ptr += chunk;
     } else {
         uart_dma_tx.busy = 0; // Transfer finished
-        // You can set a flag, notify a task, etc. here!
+        HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
     }
 }
