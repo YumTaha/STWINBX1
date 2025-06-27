@@ -1,290 +1,414 @@
-# IIS3DWB Vibration Sensor Data Logger
+# IIS3DWB Data Logger - Code Documentation
 
-A Python toolkit for real-time data acquisition and visualization from the IIS3DWB 3-axis accelerometer via serial communication. This project provides two main scripts for different data collection scenarios: limited sample collection and continuous streaming.
+Technical documentation for understanding the internal workings of the IIS3DWB vibration sensor data logging scripts. This documentation explains the architecture, data flow, and implementation details of each component.
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Hardware Setup](#hardware-setup)
-- [Usage](#usage)
-  - [Limited Sample Collection](#limited-sample-collection)
-  - [Continuous Data Streaming](#continuous-data-streaming)
-- [Configuration](#configuration)
-- [Data Format](#data-format)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
+- [Architecture Overview](#architecture-overview)
+- [File Structure](#file-structure)
+- [Configuration Constants](#configuration-constants)
+- [SerialPlotter Class](#serialplotter-class)
+- [Data Processing Pipeline](#data-processing-pipeline)
+- [Animation System](#animation-system)
+- [Memory Management](#memory-management)
+- [Error Handling](#error-handling)
+- [Utility Functions](#utility-functions)
 
-## 🔍 Overview
+## 🏗️ Architecture Overview
 
-This toolkit interfaces with STM32-based systems equipped with the **IIS3DWB** high-performance 3-axis accelerometer. The IIS3DWB is designed for vibration monitoring applications and can sample at rates up to 26.7 kHz, making it ideal for industrial condition monitoring and predictive maintenance applications.
-
-### Key Components
-
-1. **`readdata_1M.py`** - Collects a fixed number of samples (up to 1 million) with automatic stop
-2. **`readdata_continuous.py`** - Provides continuous data streaming with a rolling display buffer
-
-## ✨ Features
-
-- **High-Speed Data Acquisition**: Supports baudrates up to 8 Mbps for real-time data streaming
-- **Real-Time Visualization**: Live matplotlib plots with automatic scaling and multiple axis display
-- **Flexible Sample Management**: Choose between fixed-count collection or continuous streaming
-- **Robust Error Handling**: Built-in timeout detection and serial communication error recovery
-- **Memory Efficient**: Uses deque data structures for optimal memory usage with large datasets
-- **Cross-Platform**: Compatible with Windows, Linux, and macOS
-
-## 📦 Requirements
-
-### Python Dependencies
+Both scripts implement a real-time data acquisition and visualization system using an event-driven architecture:
 
 ```
-python >= 3.7
-pyserial >= 3.5
-matplotlib >= 3.5.0
-numpy >= 1.20.0
+Serial Port → Buffer → Parser → Data Structures → Matplotlib Animation → Display
+     ↑                                                      ↓
+   STM32                                               User Interface
 ```
 
-### Hardware Requirements
+### Key Design Patterns
 
-- STM32 microcontroller with IIS3DWB sensor
-- USB-to-Serial converter or direct USB connection
-- Minimum 4GB RAM (recommended for 1M sample collection)
+1. **Producer-Consumer Pattern**: Serial reading produces data, animation consumes it
+2. **Circular Buffer**: Using `deque` with `maxlen` for memory-efficient data storage
+3. **State Machine**: `running` flag controls the application lifecycle
+4. **Observer Pattern**: Matplotlib animation observes data changes
 
-## 🚀 Installation
+## 📁 File Structure
 
-1. **Clone or download the repository**
-   ```bash
-   git clone <repository-url>
-   cd iis3dwb-data-logger
-   ```
+### `readdata_1M.py` - Fixed Sample Collection
+- **Purpose**: Collects exactly `MAX_SAMPLES` samples then stops
+- **Use Case**: Batch data collection for analysis
+- **Memory**: Grows linearly up to maximum sample count
 
-2. **Install Python dependencies**
-   ```bash
-   pip install pyserial matplotlib numpy
-   ```
+### `readdata_continuous.py` - Streaming Collection  
+- **Purpose**: Continuous data collection with rolling window display
+- **Use Case**: Real-time monitoring and live analysis
+- **Memory**: Constant memory usage with circular buffer
 
-3. **Connect your hardware** and identify the COM port
-
-4. **Update configuration** in the Python files (see [Configuration](#configuration))
-
-## 🔧 Hardware Setup
-
-### STM32 Configuration
-
-Your STM32 should be configured to:
-- Initialize the IIS3DWB sensor with ±2g full-scale range
-- Stream data at the configured baud rate (default: 8,000,000 bps)
-- Send data in the expected 7-byte packet format
-
-### Wiring
-
-Ensure proper connections between:
-- STM32 ↔ IIS3DWB (I2C/SPI)
-- STM32 ↔ PC (USB/UART)
-
-## 📖 Usage
-
-### Limited Sample Collection
-
-Use `readdata_1M.py` when you need to collect a specific number of samples and automatically stop.
-
-```bash
-python readdata_1M.py
-```
-
-**Features:**
-- Collects up to 1,000,000 samples by default
-- Automatically stops when target is reached
-- Shows progress counter
-- Ideal for batch processing and analysis
-
-**Example Output:**
-```
-Starting live serial plotter (1M sample limit)...
-Port: COM11
-Baudrate: 8000000
-Max samples: 1,000,000
-Connected to COM11 at 8000000 baud
-Starting live plot... Will stop after collecting 1,000,000 samples
-Reached maximum samples (1,000,000). Stopping data collection.
-Final count: 1,000,000 samples collected
-```
-
-### Continuous Data Streaming
-
-Use `readdata_continuous.py` for ongoing monitoring and real-time analysis.
-
-```bash
-python readdata_continuous.py
-```
-
-**Features:**
-- Continuous data collection
-- Rolling display buffer (last 100,000 samples visible)
-- Runs indefinitely until manually stopped
-- Perfect for real-time monitoring
-
-**Example Output:**
-```
-Starting continuous live serial plotter...
-Port: COM11
-Baudrate: 8000000
-Display buffer: 100,000 samples
-Connected to COM11 at 8000000 baud
-Starting continuous live plot... Press Ctrl+C to stop
-```
-
-## ⚙️ Configuration
-
-Both scripts can be configured by modifying the constants at the top of each file:
-
-### Common Configuration Parameters
+## ⚙️ Configuration Constants
 
 ```python
-# Serial Communication
-SERIAL_PORT = 'COM11'        # Windows: 'COM3', Linux/Mac: '/dev/ttyUSB0'
-BAUDRATE = 8000000           # Must match STM32 configuration
+# Serial Communication Parameters
+SERIAL_PORT = 'COM11'        # Platform-specific serial port identifier
+BAUDRATE = 8000000          # Bits per second - must match STM32 UART config
 
-# Data Processing
-BYTES_PER_SAMPLE = 7         # STM32 packet size
-SCALE_FS2G = 0.061          # Conversion factor: mg/LSB for ±2g range
+# Data Packet Structure
+BYTES_PER_SAMPLE = 7        # Fixed packet size from STM32
+SCALE_FS2G = 0.061         # Conversion factor: mg/LSB for ±2g full-scale
 
-# Display Settings
-UPDATE_INTERVAL = 50         # Plot refresh rate in milliseconds
+# Performance Tuning
+UPDATE_INTERVAL = 50        # Matplotlib animation refresh rate (ms)
+MAX_SAMPLES = 1000000       # (1M version) Maximum samples before auto-stop
+DISPLAY_SAMPLES = 100000    # (Continuous) Rolling window size
 ```
 
-### Script-Specific Parameters
+### Design Rationale
 
-**`readdata_1M.py`:**
+- **High Baudrate**: 8 Mbps enables high-frequency sensor data streaming
+- **Fixed Packet Size**: Simplifies parsing and ensures data integrity
+- **Scale Factor**: Direct conversion from ADC counts to engineering units
+- **Update Interval**: Balances responsiveness vs. CPU usage
+
+## 🏭 SerialPlotter Class
+
+Main class that encapsulates all functionality for serial data acquisition and visualization.
+
+### Constructor (`__init__`)
+
 ```python
-MAX_SAMPLES = 1000000        # Maximum samples before auto-stop
+def __init__(self, port, baudrate, max_samples/display_samples):
 ```
 
-**`readdata_continuous.py`:**
+**Purpose**: Initialize all components and data structures
+
+**Key Operations**:
+1. **Data Structure Setup**: Creates four `deque` objects for X, Y, Z data and time indices
+2. **Plot Initialization**: Configures matplotlib figure, axes, and line objects
+3. **State Variables**: Sets up counters, flags, and timing variables
+4. **Serial Configuration**: Stores connection parameters for later use
+
+**Memory Allocation**:
+- `deque(maxlen=N)`: Pre-allocates circular buffer of size N
+- Matplotlib objects: Figure, axis, and three line objects
+- Bytearray buffer: Dynamic size based on incoming serial data
+
+### Serial Connection (`connect_serial`)
+
 ```python
-DISPLAY_SAMPLES = 100000     # Rolling buffer size for display
+def connect_serial(self) -> bool:
 ```
 
-### Finding Your Serial Port
+**Purpose**: Establish serial communication with STM32
 
-**Windows:**
-- Check Device Manager → Ports (COM & LPT)
-- Common: `COM3`, `COM4`, `COM11`
+**Implementation Details**:
+- Uses `pyserial` library with specified timeout (0.1s)
+- Non-blocking reads to prevent UI freezing
+- Returns boolean for connection status checking
+- Exception handling for port access issues
 
-**Linux/Mac:**
-```bash
-ls /dev/tty*
-# Look for /dev/ttyUSB0, /dev/ttyACM0, etc.
-```
+**Error Scenarios**:
+- Port already in use by another application
+- Invalid port name or hardware disconnection
+- Insufficient permissions on Linux/Mac systems
 
-## 📊 Data Format
+### Data Parsing (`parse_new_samples`)
 
-### Packet Structure
-
-Each data packet from the STM32 consists of 7 bytes:
-
-| Byte | Description |
-|------|-------------|
-| 0    | Start marker/timestamp |
-| 1-2  | X-axis (int16, little-endian) |
-| 3-4  | Y-axis (int16, little-endian) |
-| 5-6  | Z-axis (int16, little-endian) |
-
-### Data Conversion
-
-Raw sensor data is converted to milligravity (mg) using:
 ```python
-acceleration_mg = raw_value * SCALE_FS2G
+def parse_new_samples(self) -> int:
 ```
 
-Where `SCALE_FS2G = 0.061 mg/LSB` for ±2g full-scale range.
+**Purpose**: Extract complete 7-byte packets from the serial buffer
 
-## 🎯 Plot Features
+**Algorithm**:
+1. **Packet Detection**: Check if buffer contains at least `BYTES_PER_SAMPLE` bytes
+2. **Binary Unpacking**: Use `struct.unpack_from('<h', buffer, offset)` for little-endian int16
+3. **Unit Conversion**: Multiply raw values by `SCALE_FS2G` for mg units
+4. **Buffer Management**: Remove processed bytes using `del buffer[:7]`
+5. **Data Storage**: Append to respective deque structures
 
-### Real-Time Display
-- **Red line**: X-axis acceleration
-- **Green line**: Y-axis acceleration  
-- **Blue line**: Z-axis acceleration
-- **Yellow box**: Sample counter and status
+**Byte Layout**:
+```
+[0] - Header/timestamp (ignored in current implementation)
+[1-2] - X-axis acceleration (int16, little-endian)
+[3-4] - Y-axis acceleration (int16, little-endian)  
+[5-6] - Z-axis acceleration (int16, little-endian)
+```
 
-### Auto-Scaling
-- Automatic X and Y axis scaling based on data range
-- 10% margin added for better visualization
-- Grid lines for easier reading
+**Performance Considerations**:
+- `struct.unpack_from()` is faster than slicing + `struct.unpack()`
+- `del buffer[:n]` efficiently removes processed data
+- Loop processes all available complete packets in one call
 
-### Performance Optimization
-- Efficient deque data structures
-- Blitted animation for smooth updates
-- Configurable update intervals
+### Serial Data Reading (`read_serial_data`)
 
-## 🔧 Troubleshooting
+```python
+def read_serial_data(self) -> bool:
+```
 
-### Common Issues
+**Purpose**: Non-blocking read from serial port
 
-**"Failed to connect to serial port"**
-- Verify the COM port is correct
-- Ensure no other applications are using the port
-- Check cable connections
-- Try different baud rates
+**Implementation**:
+1. **Availability Check**: `serial_conn.in_waiting` returns bytes available
+2. **Bulk Read**: Read all available data at once for efficiency
+3. **Buffer Extension**: Append new bytes to existing buffer using `extend()`
+4. **Timestamp Update**: Track last successful read for timeout detection
 
-**"No data received" warnings**
-- Verify STM32 is transmitting data
-- Check baud rate matching between STM32 and Python
-- Ensure proper data packet format
-- Verify power supply to the sensor
+**Non-blocking Design**:
+- Only reads when data is available (`in_waiting > 0`)
+- Returns immediately if no data present
+- Prevents animation from freezing during serial delays
 
-**Slow performance or choppy plots**
-- Increase `UPDATE_INTERVAL` (less frequent updates)
-- Reduce `DISPLAY_SAMPLES` for continuous mode
-- Close other applications to free system resources
-- Consider using a faster computer for high-speed data
+### Animation Loop (`animate`)
 
-**Memory issues with large datasets**
-- Reduce `MAX_SAMPLES` in the 1M version
-- Use continuous mode for long-term monitoring
-- Monitor system RAM usage
+```python
+def animate(self, frame) -> tuple:
+```
 
-### Performance Tips
+**Purpose**: Core animation callback function called by matplotlib
 
-1. **Optimize for your system**: Adjust `UPDATE_INTERVAL` based on your computer's performance
-2. **Use appropriate buffer sizes**: Larger buffers need more RAM but show more history
-3. **Close unnecessary applications**: Free up system resources for smooth operation
-4. **USB connection**: Direct USB typically performs better than USB-to-Serial converters
+**Execution Flow**:
+1. **State Check**: Return early if `running = False`
+2. **Timeout Detection**: Check for data starvation
+3. **Data Acquisition**: Call `read_serial_data()`
+4. **Data Processing**: Call `parse_new_samples()`
+5. **Plot Update**: Update line data and axis scaling
+6. **UI Update**: Refresh sample counter display
 
-## 🤝 Contributing
+**Return Value**: Tuple of plot objects for blitting optimization
 
-Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests.
+**Auto-scaling Algorithm**:
+```python
+# Combine all axis data for range calculation
+all_values = list(x_data) + list(y_data) + list(z_data)
+y_min, y_max = min(all_values), max(all_values)
+margin = (y_max - y_min) * 0.1  # 10% margin
+ax.set_ylim(y_min - margin, y_max + margin)
+```
 
-### Development Setup
+### Application Lifecycle (`start_plotting`)
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test with your hardware setup
-5. Submit a pull request
+```python
+def start_plotting(self):
+```
 
-### Areas for Contribution
+**Purpose**: Main application entry point and lifecycle management
 
-- Additional sensor support
-- Data export functionality
-- Advanced signal processing features
-- GUI interface
-- Configuration file support
-- Unit tests
+**Sequence**:
+1. **Connection**: Establish serial communication
+2. **Animation Setup**: Create `FuncAnimation` object with blitting enabled
+3. **Event Loop**: Enter matplotlib's blocking event loop
+4. **Cleanup**: Handle graceful shutdown on exit or Ctrl+C
 
-## 📝 License
+**Animation Configuration**:
+- `interval=UPDATE_INTERVAL`: Refresh rate in milliseconds
+- `blit=True`: Enable blitting for better performance
+- `cache_frame_data=False`: Prevent memory accumulation
 
-This project is open source. Please check the license file for details.
+## 🔄 Data Processing Pipeline
 
-## 🆘 Support
+### Stage 1: Serial Reception
+- **Input**: Raw bytes from STM32 UART
+- **Buffer**: `bytearray()` accumulates incoming data
+- **Rate**: Up to 8 Mbps continuous stream
 
-For issues and questions:
-1. Check the [Troubleshooting](#troubleshooting) section
-2. Search existing issues in the repository
-3. Create a new issue with detailed information about your setup
+### Stage 2: Packet Parsing
+- **Input**: Buffered byte stream
+- **Process**: Extract 7-byte packets using `struct.unpack_from()`
+- **Output**: Raw int16 values for X, Y, Z axes
+
+### Stage 3: Unit Conversion
+- **Input**: Raw ADC counts (int16)
+- **Process**: Multiply by `SCALE_FS2G` constant
+- **Output**: Acceleration values in milligravity (mg)
+
+### Stage 4: Data Storage
+- **Structure**: Three separate `deque` objects per axis
+- **Indexing**: Monotonic sample counter for time reference
+- **Memory**: Circular buffer with automatic old data eviction
+
+### Stage 5: Visualization
+- **Input**: Current data in deque structures
+- **Process**: Convert to lists for matplotlib line objects
+- **Output**: Real-time plot updates
+
+## 🎬 Animation System
+
+### Matplotlib Integration
+
+The animation system uses `matplotlib.animation.FuncAnimation`:
+
+```python
+self.ani = animation.FuncAnimation(
+    self.fig, self.animate, 
+    interval=UPDATE_INTERVAL,
+    blit=True, 
+    cache_frame_data=False
+)
+```
+
+### Blitting Optimization
+
+**Concept**: Only redraw changed parts of the plot
+**Implementation**: Return tuple of modified artists from `animate()`
+**Benefit**: Significant performance improvement for high-refresh-rate plots
+
+### Line Object Management
+
+Three separate line objects for each axis:
+```python
+self.line_x, = self.ax.plot([], [], 'r-', label='X [mg]', alpha=0.8)
+self.line_y, = self.ax.plot([], [], 'g-', label='Y [mg]', alpha=0.8)  
+self.line_z, = self.ax.plot([], [], 'b-', label='Z [mg]', alpha=0.8)
+```
+
+**Color Coding**: Red=X, Green=Y, Blue=Z (standard convention)
+**Alpha**: 0.8 transparency for overlapping line visibility
+
+## 💾 Memory Management
+
+### Deque Data Structures
+
+```python
+from collections import deque
+
+self.x_data = deque(maxlen=max_samples)
+self.y_data = deque(maxlen=max_samples)
+self.z_data = deque(maxlen=max_samples)
+self.time_indices = deque(maxlen=max_samples)
+```
+
+**Advantages**:
+- **O(1)** append and pop operations
+- **Automatic memory management**: Old data automatically evicted when full
+- **Memory bounded**: Maximum memory usage is predictable
+- **Cache friendly**: Contiguous memory layout
+
+### Buffer Management
+
+**Serial Buffer**: `bytearray()` for incoming serial data
+- Grows dynamically as data arrives
+- Shrinks as packets are processed
+- Typical size: 7-70 bytes (1-10 packets)
+
+**Plot Conversion**: Temporary list creation for matplotlib
+```python
+indices = list(self.time_indices)  # Convert deque to list
+self.line_x.set_data(indices, list(self.x_data))
+```
+
+### Memory Differences Between Scripts
+
+**`readdata_1M.py`**:
+- Linear memory growth up to 1M samples
+- Peak usage: ~32MB for 1M samples (4 × 8 bytes × 1M)
+- Fixed endpoint with cleanup
+
+**`readdata_continuous.py`**:
+- Constant memory usage after initial fill
+- Steady state: ~3.2MB for 100K sample window
+- Runs indefinitely with bounded memory
+
+## ⚠️ Error Handling
+
+### Serial Communication Errors
+
+```python
+try:
+    data = self.serial_conn.read(self.serial_conn.in_waiting)
+    if data:
+        self.buffer.extend(data)
+        self.last_data_time = time.time()
+        return True
+except Exception as e:
+    print(f"Serial read error: {e}")
+```
+
+**Error Types**:
+- **Device disconnection**: USB cable unplugged
+- **Port busy**: Another application using the port
+- **Timeout**: No response from STM32
+- **Data corruption**: Invalid bytes received
+
+### Timeout Detection
+
+```python
+if time.time() - self.last_data_time > timeout_seconds:
+    print("Warning: No data received for X seconds")
+```
+
+**Timeout Values**:
+- `readdata_1M.py`: 10 seconds (more aggressive)
+- `readdata_continuous.py`: 30 seconds (more tolerant)
+
+**Recovery Strategy**: Continue listening, don't exit immediately
+
+### Graceful Shutdown
+
+```python
+try:
+    plt.show()
+except KeyboardInterrupt:
+    print("\nStopped by user")
+finally:
+    if self.serial_conn:
+        self.serial_conn.close()
+        print("Serial connection closed")
+```
+
+**Cleanup Operations**:
+1. Close serial port connection
+2. Print final statistics
+3. Release matplotlib resources
+
+## 🛠️ Utility Functions
+
+### Legacy Parser (`parse_samples`)
+
+```python
+def parse_samples(raw_bytes) -> tuple[list, list, list]:
+```
+
+**Purpose**: Batch processing of raw byte buffers (compatibility function)
+**Usage**: Not used in current real-time implementation
+**Returns**: Three lists containing X, Y, Z acceleration data
+
+**Algorithm**:
+```python
+for i in range(0, len(raw_bytes) - BYTES_PER_SAMPLE + 1, BYTES_PER_SAMPLE):
+    x = struct.unpack_from('<h', raw_bytes, i+1)[0]
+    y = struct.unpack_from('<h', raw_bytes, i+3)[0] 
+    z = struct.unpack_from('<h', raw_bytes, i+5)[0]
+    xs.append(x * SCALE_FS2G)
+    ys.append(y * SCALE_FS2G)
+    zs.append(z * SCALE_FS2G)
+```
+
+### Main Entry Point (`main`)
+
+```python
+def main():
+```
+
+**Purpose**: Application bootstrap and configuration display
+**Operations**:
+1. Print configuration summary
+2. Create `SerialPlotter` instance  
+3. Start the plotting system
+
+**Configuration Summary**:
+- Serial port and baud rate
+- Sample limits or buffer sizes
+- Helpful for debugging connection issues
 
 ---
 
-**Happy Data Logging! 📈**
+## 🔍 Code Flow Summary
+
+1. **Initialization**: Create data structures and plot objects
+2. **Connection**: Establish serial communication with STM32
+3. **Animation Loop**: 
+   - Read available serial data
+   - Parse complete packets
+   - Update data structures
+   - Refresh plot display
+4. **Cleanup**: Close connections and display statistics
+
+This architecture provides robust, real-time data acquisition with efficient memory usage and responsive user interface.
