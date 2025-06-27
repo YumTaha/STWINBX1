@@ -13,18 +13,22 @@ extern "C" {
  * DEFINES & MACROS
  * ============================================================================ */
 #define VIB_FIFO_WATERMARK    500
-#define VIB_SAMPLE_BUFFER_SIZE  40000 // 1.5 seconds of storage
 #define VIB_SAMPLES_PER_SEC 26667 // 1 seconds of data (26.7kHz)
+#define VIB_HALF_SEC_SAMPLES (VIB_SAMPLES_PER_SEC / 2) // Half second buffer for double buffering
+#define VIB_SAMPLE_BUFFER_SIZE  VIB_SAMPLES_PER_SEC // Total storage (for backward compatibility)
 
 /* ============================================================================
  * TYPE DEFINITIONS
  * ============================================================================ */
 typedef struct {
-    iis3dwb_fifo_out_raw_t *buffer;
-    iis3dwb_fifo_out_raw_t *current_ptr;
-    uint32_t level;
-    uint32_t max_size;
-} vib_buffer_t;
+    iis3dwb_fifo_out_raw_t *buffer_A;
+    iis3dwb_fifo_out_raw_t *buffer_B;
+    iis3dwb_fifo_out_raw_t *active_buffer;    // Currently being filled
+    iis3dwb_fifo_out_raw_t *dma_buffer;       // Currently being transmitted
+    uint32_t active_index;                    // Current position in active buffer
+    uint32_t buffer_size;                     // Size of each half-buffer
+    volatile uint8_t dma_in_progress;         // Flag indicating DMA transmission active
+} vib_double_buffer_t;
 
 /* ============================================================================
  * SENSOR INITIALIZATION & CONFIGURATION
@@ -39,16 +43,17 @@ int32_t vib_sensor_init(void);
 /* Get current FIFO status from vibration sensor */
 void vib_sensor_get_fifo_status(void);
 
-/* Read data from vibration sensor FIFO and manage buffer
- * Returns: pointer to buffer and number of samples if buffer is ready for processing,
- *          NULL if buffer is not ready */
-const iis3dwb_fifo_out_raw_t* vib_sensor_read_fifo_data(uint32_t *num_samples);
+/* Read data from vibration sensor FIFO using double buffering
+ * Returns: pointer to full buffer ready for transmission and number of samples,
+ *          NULL if no buffer is ready for transmission */
+const iis3dwb_fifo_out_raw_t* vib_sensor_read_fifo_data_double_buffer(uint32_t *num_samples);
 
-/* Reset the sensor data buffer to empty state */
-void vib_sensor_reset_buffer(void);
+/* Notify sensor module that DMA transmission is complete
+ * Should be called from communication module when transmission finishes */
+void vib_sensor_dma_transmission_complete(void);
 
-/* Get current buffer level */
-uint32_t vib_sensor_get_buffer_level(void);
+/* Get current active buffer fill level (for debugging/monitoring) */
+uint32_t vib_sensor_get_active_buffer_level(void);
 
 #ifdef __cplusplus
 }

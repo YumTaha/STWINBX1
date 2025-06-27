@@ -2,7 +2,8 @@
  * INCLUDES
  * ============================================================================ */
 #include "vib_comm.h"
-#include "main.h"      // for LED GPIO definitions
+#include "vib_sensor.h"  // For DMA completion notification
+#include "main.h"        // for LED GPIO definitions
 
 /* ============================================================================
  * EXTERNAL VARIABLES
@@ -54,6 +55,9 @@ void vib_comm_uart_dma_tx_complete_callback(UART_HandleTypeDef *huart)
     } else {
         uart_dma_tx.busy = 0; // Transfer finished
         HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+        
+        // Notify sensor module that DMA transmission is complete
+        vib_sensor_dma_transmission_complete();
     }
 }
 

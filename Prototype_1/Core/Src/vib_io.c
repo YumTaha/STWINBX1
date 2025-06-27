@@ -28,18 +28,16 @@ int32_t vib_io_init(void) {
 
 void vib_io_process(void) {
     uint32_t num_samples = 0;
-    const iis3dwb_fifo_out_raw_t *buffer = vib_sensor_read_fifo_data(&num_samples);
+    const iis3dwb_fifo_out_raw_t *buffer = vib_sensor_read_fifo_data_double_buffer(&num_samples);
     
     if (buffer != NULL && num_samples > 0) {
-        // Buffer is ready for transmission
-        if (!vib_comm_is_busy()) {
-            vib_comm_status_t status = vib_comm_send_buffer_uart_dma(buffer, num_samples);
-            if (status == VIB_COMM_OK) {
-                // Transmission started successfully, reset sensor buffer
-                vib_sensor_reset_buffer();
-            }
-            // Note: If transmission fails or is busy, we'll try again next time
+        // Buffer is ready for transmission - start DMA immediately
+        vib_comm_status_t status = vib_comm_send_buffer_uart_dma(buffer, num_samples);
+        if (status != VIB_COMM_OK) {
+            // If transmission fails, notify sensor to reset DMA flag
+            vib_sensor_dma_transmission_complete();
         }
+        // Note: If DMA start succeeds, the completion callback will notify the sensor
     }
 }
 

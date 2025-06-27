@@ -14,13 +14,18 @@
 static stmdev_ctx_t dev_ctx;
 static iis3dwb_fifo_status_t fifo_status;
 
-/* Buffer management */
-static iis3dwb_fifo_out_raw_t fifo_data[VIB_SAMPLE_BUFFER_SIZE];
-static vib_buffer_t sensor_buffer = {
-    .buffer = fifo_data,
-    .current_ptr = fifo_data,
-    .level = 0,
-    .max_size = VIB_SAMPLE_BUFFER_SIZE
+/* Double buffer management */
+static iis3dwb_fifo_out_raw_t buffer_A[VIB_HALF_SEC_SAMPLES];
+static iis3dwb_fifo_out_raw_t buffer_B[VIB_HALF_SEC_SAMPLES];
+
+static vib_double_buffer_t double_buffer = {
+    .buffer_A = buffer_A,
+    .buffer_B = buffer_B,
+    .active_buffer = buffer_A,
+    .dma_buffer = buffer_B,
+    .active_index = 0,
+    .buffer_size = VIB_HALF_SEC_SAMPLES,
+    .dma_in_progress = 0
 };
 
 /* ============================================================================
@@ -105,7 +110,7 @@ void vib_sensor_get_fifo_status(void){
 	iis3dwb_fifo_status_get(&dev_ctx, &fifo_status);
 }
 
-const iis3dwb_fifo_out_raw_t* vib_sensor_read_fifo_data(uint32_t *num_samples) {
+const iis3dwb_fifo_out_raw_t* vib_sensor_read_fifo_data_double_buffer(uint32_t *num_samples) {
     uint16_t samples_to_read = 0;
 
     /* Initialize output parameters */
@@ -120,44 +125,52 @@ const iis3dwb_fifo_out_raw_t* vib_sensor_read_fifo_data(uint32_t *num_samples) {
     // 2. Check if FIFO threshold interrupt flag is set
     if (fifo_status.fifo_th) {
         samples_to_read = fifo_status.fifo_level;
-
-        // 2a. Ensure buffer will not overflow
-        if ((sensor_buffer.level + samples_to_read) > sensor_buffer.max_size) {
-            // Buffer overrun protection: reset buffer to start
-            vib_sensor_reset_buffer();
+        
+        // 2a. Ensure not to overflow the active buffer
+        if ((double_buffer.active_index + samples_to_read) > double_buffer.buffer_size) {
+            samples_to_read = double_buffer.buffer_size - double_buffer.active_index;
         }
 
-        // 2b. Read all available samples from FIFO in a single burst
-        if (iis3dwb_fifo_out_multi_raw_get(&dev_ctx, sensor_buffer.current_ptr, samples_to_read) == 0) {
+        // 2b. Read samples into active buffer at current position
+        if (iis3dwb_fifo_out_multi_raw_get(&dev_ctx, 
+                                          &double_buffer.active_buffer[double_buffer.active_index], 
+                                          samples_to_read) == 0) {
             // Update buffer state
-            sensor_buffer.current_ptr += samples_to_read;
-            sensor_buffer.level += samples_to_read;
+            double_buffer.active_index += samples_to_read;
         } else {
         	Error_Handler();
+            return NULL;
+        }
+
+        // 3. Check if active buffer is full and DMA is not busy
+        if (double_buffer.active_index == double_buffer.buffer_size && !double_buffer.dma_in_progress) {
+            // Swap buffers - active becomes DMA buffer, DMA buffer becomes active
+            iis3dwb_fifo_out_raw_t *tmp = double_buffer.dma_buffer;
+            double_buffer.dma_buffer = double_buffer.active_buffer;
+            double_buffer.active_buffer = tmp;
+            
+            // Reset active buffer index
+            double_buffer.active_index = 0;
+            
+            // Mark DMA as in progress
+            double_buffer.dma_in_progress = 1;
+            
+            // Signal LED that buffer is ready
+            HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+            
+            // Return full buffer for DMA transmission
+            if (num_samples) *num_samples = double_buffer.buffer_size;
+            return double_buffer.dma_buffer;
         }
     }
 
-    // 3. Check if buffer is full enough for processing
-    if (sensor_buffer.level >= VIB_SAMPLES_PER_SEC) {
-        // (a) Stop sensor data output to prevent further filling
-        iis3dwb_xl_data_rate_set(&dev_ctx, IIS3DWB_XL_ODR_OFF);
-
-        // (b) Signal action (e.g., toggle LED)
-        HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-
-        // (c) Return buffer for processing
-        if (num_samples) *num_samples = sensor_buffer.level;
-        return sensor_buffer.buffer;
-    }
-
-    return NULL; // Buffer not ready yet
+    return NULL; // No buffer ready for transmission
 }
 
-void vib_sensor_reset_buffer(void) {
-    sensor_buffer.current_ptr = sensor_buffer.buffer;
-    sensor_buffer.level = 0;
+void vib_sensor_dma_transmission_complete(void) {
+    double_buffer.dma_in_progress = 0; // Allow next buffer swap
 }
 
-uint32_t vib_sensor_get_buffer_level(void) {
-    return sensor_buffer.level;
+uint32_t vib_sensor_get_active_buffer_level(void) {
+    return double_buffer.active_index;
 }
