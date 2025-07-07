@@ -358,10 +358,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 {
-    //if (GPIO_Pin == INT1_Pin) { // Sends a notification to FreeRTOS that an interrupt has occured
-        //vTaskNotifyGiveFromISR(FIFO_readHandle, &xHigherPriorityTaskWoken);
-        //portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-    //}
 	if(GPIO_Pin == INT1_Pin){
 		fifo_int_flag = 1;  // Set the flag
 
